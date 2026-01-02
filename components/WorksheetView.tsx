@@ -4,10 +4,11 @@ import { Worksheet, QuestionType, ThemeType, Question } from '../types';
 import { LatexRenderer } from './LatexRenderer';
 import { generateSpeech } from '../services/geminiService';
 import { uploadFile, getPublicUrl, supabase } from '../services/supabaseClient';
+import { DraggableLineRow, SymbolDrillRow, HandDrawnDivider } from './HandwritingElements';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { 
-  Trash2, Edit3, Check, Landmark, Printer, Loader2, Link as LinkIcon, Share2, Volume2, Copy, GripVertical, Image as ImageIcon, PlusCircle, Sparkles, BookOpen, FileText, MousePointer2, Book
+  Trash2, Edit3, Check, Landmark, Printer, Loader2, Link as LinkIcon, Share2, Volume2, Copy, GripVertical, Image as ImageIcon, PlusCircle, Sparkles, BookOpen, FileText, MousePointer2, Book, Scissors
 } from 'lucide-react';
 
 interface WorksheetViewProps {
@@ -29,9 +30,6 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
   const [isBuilderMode, setIsBuilderMode] = useState(false);
   const [currentTheme, setCurrentTheme] = useState<ThemeType>(initialTheme);
   const [isExporting, setIsExporting] = useState(false);
-  const [isSharing, setIsSharing] = useState(false);
-  const [shareUrl, setShareUrl] = useState<string | null>(null);
-  const [activeSpeechId, setActiveSpeechId] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { setWorksheet(initialWorksheet); }, [initialWorksheet]);
@@ -42,9 +40,7 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
   };
 
   const handleSpeech = async (id: string, text: string) => {
-    setActiveSpeechId(id);
     await generateSpeech(text);
-    setActiveSpeechId(null);
   };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -91,7 +87,7 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
     if (pts) {
       handleUpdate({
         ...worksheet,
-        questions: worksheet.questions.map(q => ({ ...q, points: parseInt(pts) }))
+        questions: worksheet.questions.map(q => ({ ...q, points: parseInt(pts) || 5 }))
       });
     }
   };
@@ -124,6 +120,25 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
         </span>
       </div>
     );
+  };
+
+  const addQuestion = (type: QuestionType) => {
+    const newQ: Question = { 
+      id: Math.random().toString(36).substr(2, 9), 
+      type, 
+      sectionInstruction: type === QuestionType.PAGE_BREAK ? "" : "New Section Instruction", 
+      question: type === QuestionType.PAGE_BREAK ? "" : "New Question Content...", 
+      correctAnswer: "...", 
+      explanation: "...", 
+      isChallenge: false, 
+      points: type === QuestionType.PAGE_BREAK ? 0 : 5 
+    };
+
+    if (type === QuestionType.MCQ) newQ.options = ["Option 1", "Option 2", "Option 3", "Option 4"];
+    if (type === QuestionType.TF) newQ.options = ["True", "False"];
+    if (type === QuestionType.MATCHING) newQ.options = ["A: 1", "B: 2", "C: 3"];
+
+    handleUpdate({...worksheet, questions: [...worksheet.questions, newQ]});
   };
 
   return (
@@ -219,44 +234,79 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
             <button onClick={() => handleSpeech('intro', worksheet.topic || "")} className="no-print p-2 rounded-lg bg-white border border-slate-200 text-slate-900 hover:text-blue-600 shadow-sm ml-4 transition-all"><Volume2 className="w-4 h-4" /></button>
           </div>
 
-          <div className="space-y-16">
+          <div className="space-y-12">
             {worksheet.questions.map((q, idx) => (
-              <div key={q.id} className="relative group/q">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex items-start gap-4 flex-1">
-                    <div className={`w-8 h-8 flex items-center justify-center font-black text-xs flex-shrink-0 text-white shadow-sm ${themeClasses.rounded} ${themeClasses.accentBg}`}>{idx + 1}</div>
-                    <div className="flex-1">
-                      <div className="mb-2 flex items-center justify-between">
-                        <EditableField label="Section" value={q.sectionInstruction || "Section Direction"} onSave={(v: any) => updateQuestion(q.id, {sectionInstruction: v})} className="text-[10px] font-black uppercase text-slate-400 tracking-widest italic" />
-                        {isBuilderMode && <button onClick={() => handleUpdate({...worksheet, questions: worksheet.questions.filter(qu => qu.id !== q.id)})} className="no-print p-1 text-slate-300 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>}
-                      </div>
-                      <EditableField label="Question" multiline value={q.question} onSave={(v: any) => updateQuestion(q.id, {question: v})} className="text-xl font-bold text-slate-900 leading-tight block" isMath={true} />
-                    </div>
+              <div key={q.id} className={`relative group/q ${q.type === QuestionType.PAGE_BREAK ? 'py-8 border-y border-dashed border-slate-200 page-break-after' : ''}`}>
+                
+                {q.type === QuestionType.PAGE_BREAK ? (
+                  <div className="flex items-center justify-center gap-4 text-slate-300 no-print">
+                    <Scissors className="w-4 h-4" />
+                    <span className="text-[10px] font-black uppercase tracking-[0.3em]">Institutional Page Break</span>
+                    {isBuilderMode && (
+                      <button onClick={() => handleUpdate({...worksheet, questions: worksheet.questions.filter(qu => qu.id !== q.id)})} className="p-1 text-slate-300 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                    )}
                   </div>
-                  <div className="ml-4 text-right">
-                    <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">Marks</span>
-                    <EditableField label="Points" value={String(q.points || 0)} onSave={(v: any) => updateQuestion(q.id, {points: parseInt(v) || 0})} className="font-black text-slate-900 w-10 text-center text-lg bg-slate-50 rounded" />
-                  </div>
-                </div>
-
-                <div className="ml-12 mt-6">
-                  {q.type === QuestionType.MCQ && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {q.options?.map((opt, i) => (
-                        <div key={i} className={`flex items-center gap-3 p-4 border-2 border-slate-100 ${themeClasses.rounded} bg-white shadow-sm hover:border-blue-100 transition-all`}>
-                          <div className={`w-5 h-5 border-2 border-slate-900 rounded-full flex-shrink-0`} />
-                          <EditableField label={`Opt ${i+1}`} value={opt} onSave={(v: any) => { const n = [...(q.options||[])]; n[i]=v; updateQuestion(q.id, {options: n}); }} className={`text-base font-bold text-slate-800`} isMath={true} />
+                ) : (
+                  <>
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex items-start gap-4 flex-1">
+                        <div className={`w-8 h-8 flex items-center justify-center font-black text-xs flex-shrink-0 text-white shadow-sm ${themeClasses.rounded} ${themeClasses.accentBg}`}>{idx + 1}</div>
+                        <div className="flex-1">
+                          <div className="mb-2 flex items-center justify-between">
+                            <EditableField label="Section" value={q.sectionInstruction || "Instruction"} onSave={(v: any) => updateQuestion(q.id, {sectionInstruction: v})} className="text-[10px] font-black uppercase text-slate-400 tracking-widest italic" />
+                            {isBuilderMode && <button onClick={() => handleUpdate({...worksheet, questions: worksheet.questions.filter(qu => qu.id !== q.id)})} className="no-print p-1 text-slate-300 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>}
+                          </div>
+                          <EditableField label="Question" multiline value={q.question} onSave={(v: any) => updateQuestion(q.id, {question: v})} className="text-xl font-bold text-slate-900 leading-tight block" isMath={true} />
                         </div>
-                      ))}
+                      </div>
+                      <div className="ml-4 text-right">
+                        <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">Marks</span>
+                        <EditableField label="Points" value={String(q.points || 0)} onSave={(v: any) => updateQuestion(q.id, {points: parseInt(v) || 0})} className="font-black text-slate-900 w-10 text-center text-lg bg-slate-50 rounded" />
+                      </div>
                     </div>
-                  )}
-                  {(q.type === QuestionType.SHORT_ANSWER || q.type === QuestionType.VOCABULARY || q.type === QuestionType.ESSAY) && (
-                    <div className="space-y-6">
-                      <div className="border-b-2 border-slate-200 h-10 w-full" />
-                      {(q.type === QuestionType.ESSAY || q.type === QuestionType.SHORT_ANSWER) && <div className="border-b-2 border-slate-100 h-10 w-full opacity-50" />}
+
+                    <div className="ml-12 mt-6">
+                      {(q.type === QuestionType.MCQ || q.type === QuestionType.TF) && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {q.options?.map((opt, i) => (
+                            <div key={i} className={`flex items-center gap-3 p-4 border-2 border-slate-100 ${themeClasses.rounded} bg-white shadow-sm hover:border-blue-100 transition-all`}>
+                              <div className={`w-5 h-5 border-2 border-slate-900 rounded-full flex-shrink-0`} />
+                              <EditableField label={`Opt ${i+1}`} value={opt} onSave={(v: any) => { const n = [...(q.options||[])]; n[i]=v; updateQuestion(q.id, {options: n}); }} className={`text-base font-bold text-slate-800`} isMath={true} />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {q.type === QuestionType.MATCHING && (
+                        <div className="space-y-3">
+                          {q.options?.map((opt, i) => (
+                            <div key={i} className="flex items-center gap-8">
+                              <div className="flex-1 p-3 border-2 border-slate-100 rounded-lg bg-slate-50/30">
+                                <EditableField value={opt.split(':')[0] || ""} onSave={(v: any) => { const n = [...(q.options||[])]; n[i]=`${v}:${opt.split(':')[1]||''}`; updateQuestion(q.id, {options: n}); }} className="font-bold text-slate-700" isMath={true} />
+                              </div>
+                              <div className="w-12 h-0.5 bg-slate-200" />
+                              <div className="flex-1 p-3 border-2 border-slate-200 border-dashed rounded-lg bg-white">
+                                <span className="opacity-10 font-handwriting-body">________________</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {(q.type === QuestionType.SHORT_ANSWER || q.type === QuestionType.VOCABULARY || q.type === QuestionType.ESSAY) && (
+                        <div className="space-y-6">
+                          <div className="border-b-2 border-slate-200 h-10 w-full" />
+                          {(q.type === QuestionType.ESSAY || q.type === QuestionType.SHORT_ANSWER) && <div className="border-b-2 border-slate-100 h-10 w-full opacity-50" />}
+                          {q.type === QuestionType.ESSAY && <div className="border-b-2 border-slate-50 h-10 w-full opacity-25" />}
+                        </div>
+                      )}
+
+                      {q.type === QuestionType.CHARACTER_DRILL && <DraggableLineRow text={q.question.charAt(0) || "A"} showTraceButton={isBuilderMode} />}
+                      {q.type === QuestionType.SENTENCE_DRILL && <DraggableLineRow text={q.question || "Practice this sentence."} showTraceButton={isBuilderMode} />}
+                      {q.type === QuestionType.SYMBOL_DRILL && <SymbolDrillRow symbols={q.question || "@ # $"} />}
                     </div>
-                  )}
-                </div>
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -275,7 +325,7 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
              </div>
              
              <div className="bg-red-50/20 p-8 rounded-[2rem] border-2 border-red-100 space-y-12">
-                {worksheet.questions.map((q, idx) => (
+                {worksheet.questions.filter(q => q.type !== QuestionType.PAGE_BREAK).map((q, idx) => (
                   <div key={`key-${q.id}`} className="space-y-4">
                      <div className="flex items-center gap-3">
                         <span className="w-8 h-8 bg-red-600 text-white rounded-lg flex items-center justify-center font-black text-xs">{idx + 1}</span>
@@ -301,19 +351,34 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
       </div>
 
       {isBuilderMode && (
-        <div className="mt-12 p-10 border-4 border-dashed border-slate-200 rounded-[3rem] bg-slate-50/50 flex flex-wrap gap-4 justify-center no-print animate-in zoom-in">
-           <div className="w-full text-center mb-4">
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Add Question Components</h4>
+        <div className="mt-12 p-10 border-4 border-dashed border-slate-200 rounded-[3rem] bg-slate-50/50 flex flex-col gap-8 no-print animate-in zoom-in items-center">
+           <div className="w-full text-center">
+              <h4 className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-400 mb-1">Pedagogical Component Palette</h4>
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Select an assessment object to append to the document</p>
            </div>
-           <button onClick={() => {
-              const newQ: Question = { id: Math.random().toString(36).substr(2, 9), type: QuestionType.MCQ, sectionInstruction: "Choose correctly:", question: "New MCQ Question...", options: ["Option 1", "Option 2"], correctAnswer: "Option 1", explanation: "...", isChallenge: false, points: 5 };
-              handleUpdate({...worksheet, questions: [...worksheet.questions, newQ]});
-           }} className="px-8 py-4 bg-white border-2 border-slate-200 rounded-2xl font-black text-xs uppercase tracking-widest hover:border-blue-500 transition-all shadow-sm">Multiple Choice</button>
            
-           <button onClick={() => {
-              const newQ: Question = { id: Math.random().toString(36).substr(2, 9), type: QuestionType.SHORT_ANSWER, sectionInstruction: "Answer briefly:", question: "New Open Question...", correctAnswer: "Answer", explanation: "...", isChallenge: false, points: 10 };
-              handleUpdate({...worksheet, questions: [...worksheet.questions, newQ]});
-           }} className="px-8 py-4 bg-white border-2 border-slate-200 rounded-2xl font-black text-xs uppercase tracking-widest hover:border-blue-500 transition-all shadow-sm">Short Response</button>
+           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 w-full">
+              {[
+                { type: QuestionType.MCQ, label: "Multiple Choice" },
+                { type: QuestionType.TF, label: "True / False" },
+                { type: QuestionType.SHORT_ANSWER, label: "Short Answer" },
+                { type: QuestionType.VOCABULARY, label: "Vocabulary" },
+                { type: QuestionType.MATCHING, label: "Matching" },
+                { type: QuestionType.ESSAY, label: "Essay" },
+                { type: QuestionType.CHARACTER_DRILL, label: "Char Drill" },
+                { type: QuestionType.SYMBOL_DRILL, label: "Symbol Drill" },
+                { type: QuestionType.SENTENCE_DRILL, label: "Sentence Drill" },
+                { type: QuestionType.PAGE_BREAK, label: "Page Break" }
+              ].map(btn => (
+                <button 
+                  key={btn.type}
+                  onClick={() => addQuestion(btn.type)} 
+                  className={`px-4 py-3 bg-white border-2 border-slate-200 rounded-xl font-black text-[9px] uppercase tracking-widest hover:border-blue-500 transition-all shadow-sm hover:scale-[1.02] active:scale-95 ${btn.type === QuestionType.PAGE_BREAK ? 'border-dashed' : ''}`}
+                >
+                  {btn.label}
+                </button>
+              ))}
+           </div>
         </div>
       )}
     </div>
