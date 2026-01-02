@@ -46,7 +46,13 @@ export const QuestionIcon = ({ type, index }: { type: string, index: number }) =
     MCQ: <path d="M9 18H15M10 21H14M12 3C8.1 3 5 6.1 5 10C5 12.4 6.2 14.5 8 15.7V17H16V15.7C17.8 14.5 19 12.4 19 10C19 6.1 15.9 3 12 3Z" />,
     TF: <path d="M4 19.5V5C4 3.9 4.9 3 6 3H19M4 19.5C4 20.6 4.9 21.5 6 21.5H19V17H6C4.9 17 4 17.9 4 19.5Z" />,
     DRILL: <path d="M3 17V21H7L17.5 10.5L13.5 6.5L3 17Z" />,
-    CHALLENGE: <circle cx="12" cy="12" r="10" strokeWidth="1.5"/><circle cx="12" cy="12" r="6" strokeWidth="1.5"/><circle cx="12" cy="12" r="2" strokeWidth="1.5" />
+    CHALLENGE: (
+      <>
+        <circle cx="12" cy="12" r="10" strokeWidth="1.5" />
+        <circle cx="12" cy="12" r="6" strokeWidth="1.5" />
+        <circle cx="12" cy="12" r="2" strokeWidth="1.5" />
+      </>
+    )
   };
   
   const icon = icons[type] || icons.DRILL;
