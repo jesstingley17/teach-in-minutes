@@ -7,7 +7,8 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { 
   Edit3, Check, Landmark, Printer, Loader2, ShieldCheck, PenTool, QrCode, BookOpen, Star,
-  Settings, X, Monitor, Maximize, FileText, Type as TypeIcon, Hash, ChevronRight
+  Settings, X, Monitor, Maximize, FileText, Type as TypeIcon, Hash, ChevronRight,
+  Palette, MousePointer2, Briefcase, GraduationCap as CapIcon
 } from 'lucide-react';
 
 interface WorksheetViewProps {
@@ -25,6 +26,8 @@ interface PrintSettings {
   showMetadata: boolean;
 }
 
+type HandwritingStyle = 'Classic' | 'Creative' | 'Modern' | 'Academic';
+
 export const WorksheetView: React.FC<WorksheetViewProps> = ({ 
   worksheet: initialWorksheet, 
   showKey = false, 
@@ -34,6 +37,7 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
   const [isBuilderMode, setIsBuilderMode] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [doodles, setDoodles] = useState<string[]>([]);
+  const [selectedStyle, setSelectedStyle] = useState<HandwritingStyle>('Classic');
   
   // Print Settings State
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
@@ -54,6 +58,24 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
 
   const primaryColor = worksheet.visualMetadata?.primaryColor || '#0f172a';
   const layoutStyle = worksheet.visualMetadata?.layoutStyle || LayoutStyle.CLASSIC;
+
+  const getStyleClasses = () => {
+    switch (selectedStyle) {
+      case 'Creative': return 'font-handwriting-body text-slate-800 tracking-wide';
+      case 'Modern': return 'font-sans tracking-tight text-slate-900 font-medium';
+      case 'Academic': return 'font-academic-body text-slate-900 leading-relaxed';
+      case 'Classic': default: return 'font-sans text-slate-800';
+    }
+  };
+
+  const getHeaderFont = () => {
+    switch (selectedStyle) {
+      case 'Creative': return 'font-handwriting-header';
+      case 'Academic': return 'font-academic-header';
+      case 'Modern': return 'font-sans font-black italic';
+      default: return 'font-sans font-black';
+    }
+  };
 
   const handleExportPDF = async () => {
     setIsExporting(true);
@@ -144,18 +166,33 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
   return (
     <div className="relative antialiased pb-4 mt-8 bg-slate-50 min-h-screen">
       {/* Top Action Bar */}
-      <div className="absolute -top-12 left-0 right-0 flex justify-between items-center no-print px-4 py-2 bg-white border border-slate-100 rounded-xl shadow-sm z-[60]">
-        <div className="flex gap-4 items-center">
-          <button onClick={() => setIsBuilderMode(!isBuilderMode)} className={`flex items-center gap-2 px-4 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all ${isBuilderMode ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-50 hover:bg-slate-100'}`}>
-            {isBuilderMode ? <Check className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}
-            {isBuilderMode ? 'Commit Synthesis' : 'Enter Architect Mode'}
-          </button>
-          <button onClick={() => setIsPrintModalOpen(true)} disabled={isExporting} className="flex items-center gap-2 px-4 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest bg-slate-900 text-white shadow-sm disabled:opacity-50 hover:bg-slate-800">
-            {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-            Materialize PDF
-          </button>
+      <div className="absolute -top-20 left-0 right-0 flex flex-col gap-3 no-print z-[60]">
+        <div className="flex justify-between items-center px-4 py-2 bg-white border border-slate-100 rounded-xl shadow-sm">
+          <div className="flex gap-4 items-center">
+            <button onClick={() => setIsBuilderMode(!isBuilderMode)} className={`flex items-center gap-2 px-4 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all ${isBuilderMode ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-50 hover:bg-slate-100'}`}>
+              {isBuilderMode ? <Check className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}
+              {isBuilderMode ? 'Commit Synthesis' : 'Enter Architect Mode'}
+            </button>
+            <button onClick={() => setIsPrintModalOpen(true)} disabled={isExporting} className="flex items-center gap-2 px-4 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest bg-slate-900 text-white shadow-sm disabled:opacity-50 hover:bg-slate-800">
+              {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+              Materialize PDF
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[8px] font-black uppercase text-slate-300">Handwriting Signature:</span>
+            <div className="flex p-1 bg-slate-100 rounded-lg gap-1">
+              {(['Classic', 'Creative', 'Modern', 'Academic'] as HandwritingStyle[]).map(style => (
+                <button 
+                  key={style}
+                  onClick={() => setSelectedStyle(style)}
+                  className={`px-3 py-1 rounded-md font-black text-[8px] uppercase tracking-widest transition-all ${selectedStyle === style ? 'bg-white shadow-sm text-slate-900' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  {style}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
-        <div className="text-[8px] font-black uppercase text-slate-300">Layout: {layoutStyle} • Profile: {worksheet.learnerProfile}</div>
       </div>
 
       {/* Print Settings Modal */}
@@ -264,10 +301,10 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
       )}
 
       {/* Main Worksheet Container */}
-      <div id="worksheet-content" className={`${printSettings.orientation === 'landscape' ? 'max-w-[297mm]' : 'max-w-[210mm]'} mx-auto min-h-[297mm] bg-white text-slate-900 overflow-hidden relative border border-slate-200 shadow-2xl transition-all duration-500`}>
+      <div id="worksheet-content" className={`${printSettings.orientation === 'landscape' ? 'max-w-[297mm]' : 'max-w-[210mm]'} mx-auto min-h-[297mm] bg-white text-slate-900 overflow-hidden relative border border-slate-200 shadow-2xl transition-all duration-500 ${getStyleClasses()}`}>
         
         {/* Print Header */}
-        <div className="p-16 border-b-2 border-slate-900 bg-white">
+        <div className={`p-16 border-b-2 border-slate-900 bg-white ${selectedStyle === 'Creative' ? 'border-slate-800' : ''}`}>
            <div className="flex justify-between items-start mb-12">
               <div className="space-y-4">
                  <div className="h-16 w-auto mb-6">
@@ -287,7 +324,7 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
                     <span className="px-2 py-1 border border-slate-900 text-[8px] font-black uppercase tracking-widest">{worksheet.documentType}</span>
                     <span className="text-[8px] font-black uppercase tracking-widest opacity-40">{worksheet.educationalLevel}</span>
                  </div>
-                 <h1 className="text-5xl font-black uppercase tracking-tighter leading-none">
+                 <h1 className={`text-5xl font-black uppercase tracking-tighter leading-none ${getHeaderFont()}`}>
                     <EditableField value={worksheet.title} onSave={(v: any) => handleUpdate({...worksheet, title: v})} />
                  </h1>
               </div>
@@ -303,18 +340,18 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
            {layoutStyle === LayoutStyle.LAID_TEACH && (
              <div className="grid grid-cols-12 gap-8 animate-in slide-in-from-top-4">
                 <div className="col-span-12">
-                   <SketchyBorderBox className="bg-white border border-slate-200 transform rotate-[-0.3deg]">
+                   <SketchyBorderBox className={`bg-white border border-slate-200 transform rotate-[-0.3deg] ${selectedStyle === 'Academic' ? 'rotate-0 border-slate-300' : ''}`}>
                       <div className="flex items-center gap-3 mb-6">
                          <BookOpen className="w-6 h-6" style={{ color: primaryColor }} />
-                         <h2 className="text-xl font-black uppercase tracking-tight italic border-b border-current">Instructional Summary</h2>
+                         <h2 className={`text-xl font-black uppercase tracking-tight italic border-b border-current ${getHeaderFont()}`}>Instructional Summary</h2>
                       </div>
-                      <div className="text-sm font-medium leading-relaxed">
+                      <div className={`text-sm font-medium leading-relaxed ${selectedStyle === 'Academic' ? 'text-justify' : ''}`}>
                          <EditableField multiline value={worksheet.teachingContent || "Synthesizing content..."} onSave={(v: any) => handleUpdate({...worksheet, teachingContent: v})} />
                       </div>
                    </SketchyBorderBox>
                 </div>
                 <div className="col-span-12 md:col-span-8">
-                  <div className="bg-slate-50/50 p-8 rounded-3xl border-2 border-dashed border-slate-200">
+                  <div className={`bg-slate-50/50 p-8 rounded-3xl border-2 border-dashed border-slate-200 ${selectedStyle === 'Academic' ? 'border-solid rounded-none bg-slate-50' : ''}`}>
                      <h3 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest mb-4"><Star className="w-4 h-4 text-yellow-500 fill-yellow-500" /> Key Takeaways</h3>
                      <ul className="space-y-3">
                         {(worksheet.keyTakeaways || ["..."]).map((takeaway, i) => (
@@ -333,7 +370,7 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
            )}
 
            <div className="pt-12 border-t border-slate-100 space-y-16">
-              <h2 className="text-2xl font-black uppercase tracking-tight flex items-center gap-4">
+              <h2 className={`text-2xl font-black uppercase tracking-tight flex items-center gap-4 ${getHeaderFont()}`}>
                  <PenTool className="w-6 h-6" /> Assessment Manifest
               </h2>
               <div className="space-y-16">
@@ -341,11 +378,11 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
                   <div key={q.id}>
                      <div className="flex justify-between items-start mb-6">
                         <div className="flex gap-6 items-start flex-1">
-                           <div className="w-10 h-10 border-2 border-slate-900 flex items-center justify-center font-black">
+                           <div className={`w-10 h-10 border-2 border-slate-900 flex items-center justify-center font-black ${selectedStyle === 'Creative' ? 'rounded-full border-dashed rotate-6' : ''}`}>
                               <span className="text-lg">{idx + 1}</span>
                            </div>
                            <div className="flex-1">
-                              <h3 className="text-xl font-bold text-slate-900 leading-tight">
+                              <h3 className={`text-xl font-bold text-slate-900 leading-tight ${selectedStyle === 'Modern' ? 'tracking-tight' : ''}`}>
                                  <EditableField multiline value={q.question} onSave={(v: any) => updateQuestion(q.id, {question: v})} />
                               </h3>
                            </div>
@@ -360,7 +397,7 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
                         {q.options && (
                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               {q.options.map((opt, i) => (
-                                 <div key={i} className="flex items-center gap-3 p-3 border border-slate-100 bg-slate-50/50">
+                                 <div key={i} className={`flex items-center gap-3 p-3 border border-slate-100 bg-slate-50/50 ${selectedStyle === 'Creative' ? 'rounded-2xl rotate-[0.5deg]' : ''}`}>
                                     <span className="w-6 h-6 flex items-center justify-center border border-slate-200 text-[8px] font-black text-slate-300">{String.fromCharCode(65 + i)}</span>
                                     <EditableField value={opt} onSave={(v: any) => { const n = [...(q.options||[])]; n[i]=v; updateQuestion(q.id, {options: n}); }} className="text-xs font-medium" />
                                  </div>
@@ -369,9 +406,9 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
                         )}
                         {(q.type === QuestionType.SHORT_ANSWER || q.type === QuestionType.ESSAY) && (
                            <div className="space-y-4 pt-4">
-                              <div className="h-[0.5px] bg-slate-200 w-full" />
-                              <div className="h-[0.5px] bg-slate-200 w-full opacity-50" />
-                              {q.type === QuestionType.ESSAY && <div className="h-[0.5px] bg-slate-200 w-full opacity-20" />}
+                              <div className={`h-[0.5px] bg-slate-200 w-full ${selectedStyle === 'Creative' ? 'border-b border-dashed bg-transparent h-1' : ''}`} />
+                              <div className={`h-[0.5px] bg-slate-200 w-full opacity-50 ${selectedStyle === 'Creative' ? 'border-b border-dashed bg-transparent h-1' : ''}`} />
+                              {q.type === QuestionType.ESSAY && <div className={`h-[0.5px] bg-slate-200 w-full opacity-20 ${selectedStyle === 'Creative' ? 'border-b border-dashed bg-transparent h-1' : ''}`} />}
                            </div>
                         )}
                      </div>
@@ -395,14 +432,14 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
           <div className="mt-24 p-16 bg-white border-t-4 border-slate-900 page-break-before">
              <div className="flex items-center gap-4 mb-12 pb-8 border-b border-slate-100">
                 <ShieldCheck className="w-10 h-10" />
-                <h2 className="text-5xl font-black uppercase tracking-tighter italic">Key Registry</h2>
+                <h2 className={`text-5xl font-black uppercase tracking-tighter italic ${getHeaderFont()}`}>Key Registry</h2>
              </div>
              <div className="space-y-12">
                 {worksheet.questions.map((q, idx) => (
                   <div key={`key-${q.id}`} className="flex gap-10 items-start border-l-2 border-slate-200 pl-10">
                      <span className="text-2xl font-black opacity-10 mt-1">{idx + 1}</span>
                      <div className="flex-1 space-y-4">
-                        <div className="p-6 bg-slate-50 border border-slate-100 rounded-xl">
+                        <div className={`p-6 bg-slate-50 border border-slate-100 rounded-xl ${selectedStyle === 'Creative' ? 'rounded-[2rem] border-dashed bg-white' : ''}`}>
                            <p className="text-[7px] font-black uppercase text-slate-400 mb-2">Verified Solution</p>
                            <p className="text-xl font-black"><LatexRenderer content={q.correctAnswer} /></p>
                         </div>
