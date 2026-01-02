@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Worksheet, QuestionType, Question, LayoutStyle } from '../types';
-import { LatexRenderer } from './LatexRenderer';
-import { SketchyBorderBox, DoodlePalette, HelenCharacter } from './HandwritingElements';
+import { Worksheet, QuestionType, Question, LayoutStyle } from '../types.ts';
+import { LatexRenderer } from './LatexRenderer.tsx';
+import { SketchyBorderBox, DoodlePalette, HelenCharacter } from './HandwritingElements.tsx';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { 

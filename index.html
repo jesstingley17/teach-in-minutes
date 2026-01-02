@@ -10,10 +10,30 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Indie+Flower&family=Schoolbell&family=Inter:wght@400;500;600;700;800;900&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+    
     <script>
-      // Shim process.env for browser compatibility
+      // 1. Critical Environment Shim
       window.process = window.process || { env: {} };
+      
+      // 2. Global Error Overlay (Debug White Screen)
+      window.onerror = function(msg, url, lineNo, columnNo, error) {
+        const div = document.createElement('div');
+        div.style.position = 'fixed';
+        div.style.top = '0';
+        div.style.left = '0';
+        div.style.width = '100%';
+        div.style.padding = '20px';
+        div.style.background = '#fee2e2';
+        div.style.color = '#991b1b';
+        div.style.zIndex = '9999';
+        div.style.fontFamily = 'monospace';
+        div.style.fontSize = '12px';
+        div.innerHTML = `<strong>Runtime Error:</strong> ${msg}<br><small>${url}:${lineNo}</small>`;
+        document.body.appendChild(div);
+        return false;
+      };
     </script>
+
     <style>
       * {
         -webkit-font-smoothing: antialiased;
@@ -50,28 +70,32 @@
         .no-print { display: none !important; }
       }
 
-      /* Custom scrollbar for library */
       .custom-scrollbar::-webkit-scrollbar { width: 4px; }
       .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
       .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
       .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
     </style>
-  <script type="importmap">
+
+    <script type="importmap">
 {
   "imports": {
     "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
     "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/",
     "react": "https://esm.sh/react@^19.2.3",
+    "react-dom": "https://esm.sh/react-dom@^19.2.3",
+    "react-dom/client": "https://esm.sh/react-dom@^19.2.3/client",
     "html2canvas": "https://esm.sh/html2canvas@^1.4.1",
     "jspdf": "https://esm.sh/jspdf@^2.5.1",
-    "katex": "https://esm.sh/katex@0.16.11"
+    "katex": "https://esm.sh/katex@0.16.11",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/"
   }
 }
 </script>
-</head>
+  </head>
   <body class="bg-slate-50 text-slate-900 overflow-x-hidden antialiased">
     <div id="root"></div>
+    <!-- Explicitly load the application entry point -->
+    <script type="module" src="./index.tsx"></script>
   </body>
 </html>

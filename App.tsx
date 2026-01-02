@@ -1,8 +1,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { AppMode, Worksheet, ThemeType, QuestionType, DocumentType, AudienceCategory, LearnerProfile, CurriculumStandard, BrandingConfig, LayoutStyle, CognitiveDepth } from './types';
-import { generateWorksheet } from './services/geminiService';
-import { WorksheetView } from './components/WorksheetView';
+import { AppMode, Worksheet, ThemeType, QuestionType, DocumentType, AudienceCategory, LearnerProfile, CurriculumStandard, BrandingConfig, LayoutStyle, CognitiveDepth } from './types.ts';
+import { generateWorksheet } from './services/geminiService.ts';
+import { WorksheetView } from './components/WorksheetView.tsx';
 import { 
   GraduationCap, Loader2, Plus, Sparkles, CloudUpload, 
   BookOpen, XCircle, Library, Eye,

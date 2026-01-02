@@ -1,6 +1,7 @@
+
 import React, { useState } from 'react';
 import { Image as ImageIcon, Sparkles, Loader2, X, PenTool } from 'lucide-react';
-import { generateDoodles } from '../services/geminiService';
+import { generateDoodles } from '../services/geminiService.ts';
 
 export const MarkerHighlight: React.FC<{ children: React.ReactNode; className?: string; color?: string }> = ({ children, className, color = 'rgba(253, 224, 71, 0.4)' }) => (
   <span 
