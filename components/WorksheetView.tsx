@@ -14,7 +14,7 @@ import {
   Trash2, Edit3, Check, X, FilePlus, Type, 
   CheckSquare, PlusCircle, ChevronUp, ChevronDown,
   Settings, User, Landmark, Clock as ClockIcon,
-  Hash, Scissors
+  Hash, Scissors, HelpCircle
 } from 'lucide-react';
 
 interface WorksheetViewProps {
@@ -72,7 +72,7 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
       sectionInstruction: "Follow the directions below:",
       question: type === QuestionType.PAGE_BREAK ? "Page Break" : "Double-click to edit question...",
       correctAnswer: "Answer",
-      explanation: "Added manually",
+      explanation: "Provide a rationale for this answer...",
       isChallenge: false,
       points: 5,
       options: type === QuestionType.MCQ ? ["Option 1", "Option 2", "Option 3", "Option 4"] : undefined
@@ -339,10 +339,23 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
                   )}
                 </div>
 
-                {showKey && q.explanation && (
-                  <div className="ml-14 mt-6 p-4 bg-slate-50 border-l-2 border-red-200 text-[11px] leading-relaxed text-slate-500 italic">
-                    <span className="font-black uppercase tracking-widest text-red-400 mr-2">Rationale:</span>
-                    <EditableField multiline value={q.explanation} onSave={v => updateQuestion(q.id, {explanation: v})} isMath={true} />
+                {/* Explanation / Rationale Field - Visible in Builder Mode or when Teacher Key is shown */}
+                {(isBuilderMode || (showKey && q.explanation)) && (
+                  <div className={`ml-14 mt-6 p-4 rounded-xl border-l-4 transition-all no-print ${isBuilderMode ? 'bg-blue-50/40 border-blue-400 mb-4' : 'bg-red-50/20 border-red-200 text-[11px] leading-relaxed text-slate-500 italic print:flex'}`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <HelpCircle className={`w-3 h-3 ${isBuilderMode ? 'text-blue-500' : 'text-red-400'}`} />
+                      <span className={`font-black uppercase tracking-widest ${isBuilderMode ? 'text-blue-500 text-[10px]' : 'text-red-400'}`}>
+                        {isBuilderMode ? 'Teacher Rationale / Explanation:' : 'Rationale:'}
+                      </span>
+                    </div>
+                    <EditableField 
+                      multiline 
+                      value={q.explanation || ""} 
+                      onSave={v => updateQuestion(q.id, {explanation: v})} 
+                      isMath={true} 
+                      placeholder="Add an explanation or rationale for the solution..."
+                      className={isBuilderMode ? 'text-sm text-slate-700' : ''}
+                    />
                   </div>
                 )}
               </div>
