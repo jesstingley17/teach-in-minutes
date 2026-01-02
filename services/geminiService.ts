@@ -23,6 +23,7 @@ export interface GenerationOptions {
 
 /**
  * Analyzes uploaded content to identify the underlying lesson structure.
+ * Uses gemini-3-flash-preview for high-speed, accurate structural mapping.
  */
 export async function analyzeCurriculum(source: { text?: string; file?: { data: string; mimeType: string } }): Promise<LessonStructure[]> {
   const ai = getAI();
@@ -33,24 +34,30 @@ export async function analyzeCurriculum(source: { text?: string; file?: { data: 
   }
 
   const prompt = `
-    Analyze this educational source material. 
-    Identify every distinct lesson, chapter, or module contained within.
-    For each lesson found, provide:
-    1. A clear title.
-    2. A brief 2-sentence instructional focus for that specific lesson.
-    3. A few key concepts that must be tested.
+    Analyze this educational document (textbook chapter, syllabus, or course notes). 
+    Break it down into a logical sequence of distinct lessons or modules.
     
-    Return the result as a JSON array of objects.
+    CRITICAL RULES:
+    1. Identify every unique topic that warrants a separate quiz or homework.
+    2. If the document has numbered chapters or sections, use those.
+    3. If it's a dense text, segment it into coherent learning units.
+    
+    For each unit identified, provide:
+    - title: A short, descriptive name for the lesson.
+    - summary: A 2-3 sentence overview of the core instructional objectives.
+    - suggestedQuestions: A few key concepts that should be tested.
+    
+    Return a JSON array of these units. Ensure you find at least as many lessons as are explicitly defined in the document structure.
   `;
   
   if (source.text) {
-    parts.push({ text: `Context: ${source.text}` });
+    parts.push({ text: `Source Text Context: ${source.text}` });
   }
   parts.push({ text: prompt });
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
+      model: "gemini-3-flash-preview",
       contents: { parts },
       config: {
         responseMimeType: "application/json",
@@ -69,9 +76,11 @@ export async function analyzeCurriculum(source: { text?: string; file?: { data: 
       }
     });
 
-    return JSON.parse(response.text || '[]');
+    const result = JSON.parse(response.text || '[]');
+    return Array.isArray(result) ? result : [];
   } catch (error) {
     console.error("Curriculum Analysis Failed:", error);
+    // Return an empty array so the UI can handle the failure gracefully
     return [];
   }
 }
@@ -123,41 +132,35 @@ export async function generateWorksheet(options: GenerationOptions): Promise<Wor
   }
 
   const promptText = `
-    ROLE: World-Class Academic Architect & Curriculum Designer.
-    TASK: Materialize a DIVERSIFIED INSTRUCTIONAL SUITE for: "${topic}".
+    ROLE: Academic Architect.
+    TASK: Generate EXACTLY ${containerIntents.length} unique educational units for: "${topic}".
     
-    COLLECTION GOAL:
-    Generate EXACTLY ${containerIntents.length} unique educational instruments.
-    IMPORTANT: Each instrument is mapped to a specific sub-topic or lesson. You MUST strictly adhere to the 'specificInstructions' for each node to ensure no overlap and complete coverage of the curriculum.
+    STRICT MAPPING REQUIREMENT:
+    You are generating a sequence of units. Each unit corresponds to a specific part of the curriculum.
+    Do NOT duplicate content between units. Use the 'specificInstructions' field for each unit to determine its boundaries.
     
-    GLOBAL CONTEXT:
-    - OVERALL TOPIC: ${topic}
-    - LEVEL: ${educationalLevel}
+    GLOBAL PARAMETERS:
+    - SUBJECT: ${topic}
+    - GRADE LEVEL: ${educationalLevel}
     - AUDIENCE: ${audienceCategory}
     - LANGUAGE: ${language}
-    ${rawText ? `- ANCHOR CONTENT: ${rawText}` : ''}
+    ${rawText ? `- CONTEXTUAL CONTENT: ${rawText}` : ''}
     
-    MATH FORMATTING (CRITICAL):
-    - EVERY fraction, equation, mathematical variable, or symbol MUST be wrapped in '$' delimiters.
-    - Example: Instead of writing 2/8 or \\frac{2}{8}, you MUST write $\\frac{2}{8}$.
-    - Example: Instead of x = 5, write $x = 5$.
+    FORMATTING:
+    - Use KaTeX/MathJax formatting for all equations. Wrap symbols in '$'. Example: $\\sum_{i=1}^{n} i$.
     
-    INSTRUMENT BLUEPRINTS:
+    SUITE ARCHITECTURE:
     ${containerIntents.map((intent, i) => `
-    [INSTRUMENT ${i+1}]
+    UNIT ${i+1}:
     - TYPE: ${intent.type}
-    - FOCUS: ${intent.specificInstructions || 'General coverage'}
+    - FOCUS: ${intent.specificInstructions || 'Complete coverage'}
     - DEPTH: ${intent.depth}
-    - SCAFFOLDING: ${intent.profile}
+    - PROFILE: ${intent.profile}
     - LAYOUT: ${intent.layout}
-    - STRUCTURE: ${Object.entries(intent.questionCounts).map(([t, c]) => `${c}x ${t}`).join(', ')}
+    - QUESTIONS: ${Object.entries(intent.questionCounts).map(([t, c]) => `${c}x ${t}`).join(', ')}
     `).join('\n')}
 
-    REQUIREMENTS:
-    1. If LAYOUT is LAID_TEACH, generate 'teachingContent' (3 paragraphs of instructional summary) and 'keyTakeaways'.
-    2. Maintain strict alignment between the instrument focus and the generated questions.
-    
-    OUTPUT: A JSON ARRAY of ${containerIntents.length} Worksheet objects.
+    Return a JSON ARRAY of ${containerIntents.length} Worksheet objects.
   `;
   
   parts.push({ text: promptText });
@@ -207,7 +210,7 @@ export async function generateWorksheet(options: GenerationOptions): Promise<Wor
       visualMetadata: { layoutStyle: containerIntents[i].layout }
     })) as Worksheet[];
   } catch (error: any) { 
-    console.error("Factory Synthesis Failure:", error);
+    console.error("Worksheet Generation Error:", error);
     throw error; 
   }
 }
