@@ -52,23 +52,18 @@ export interface GroundingSource {
   uri: string;
 }
 
-export interface Collection {
-  id: string;
-  name: string;
-  description?: string;
-  createdAt: number;
-  userId?: string;
+export interface RubricCriterion {
+  criterion: string;
+  weight: number;
+  description: string;
 }
 
-export interface AssessmentBlueprint {
-  id: string;
-  title: string;
-  topic: string;
-  status: 'draft' | 'generating' | 'ready' | 'saved';
-  worksheet?: Worksheet;
-  suggestedDocType: DocumentType;
-  originModule?: string;
-  originLesson?: string;
+export interface VisualMetadata {
+  coverImageUrl?: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+  fontStyle?: string;
+  subjectAesthetic?: string;
 }
 
 export interface Worksheet {
@@ -94,9 +89,8 @@ export interface Worksheet {
   duration?: string;
   totalPoints?: number;
   questions: Question[];
-  coloringImage?: string; 
-  diagramImage?: string;  
-  backgroundImage?: string;
+  rubric?: RubricCriterion[];
+  visualMetadata?: VisualMetadata;
   groundingSources?: GroundingSource[];
   savedAt?: number;
 }
@@ -112,7 +106,8 @@ export enum ThemeType {
   CLASSIC = 'CLASSIC',
   CREATIVE = 'CREATIVE',
   MODERN = 'MODERN',
-  ACADEMIC = 'ACADEMIC'
+  ACADEMIC = 'ACADEMIC',
+  GAMMA = 'GAMMA'
 }
 
 export interface Question {
@@ -125,4 +120,5 @@ export interface Question {
   explanation: string;
   isChallenge: boolean;
   points?: number;
+  learningOutcome?: string;
 }

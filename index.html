@@ -8,10 +8,9 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Indie+Flower&family=Schoolbell&family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:wght@700;900&family=PT+Serif:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Indie+Flower&family=Schoolbell&family=Inter:wght@400;500;600;700;800;900&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
     <style>
-      /* Force Hardware Acceleration with Crispness */
       * {
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
@@ -20,8 +19,8 @@
 
       .font-handwriting-header { font-family: 'Indie Flower', cursive; }
       .font-handwriting-body { font-family: 'Schoolbell', cursive; }
-      .font-classic-header { font-family: 'Playfair Display', serif; }
-      .font-classic-body { font-family: 'PT Serif', serif; }
+      .font-academic-header { font-family: 'Libre Baskerville', serif; }
+      .font-academic-body { font-family: 'Libre Baskerville', serif; }
       .font-mono-math { font-family: 'JetBrains Mono', monospace; }
       
       .marker-highlight {
@@ -29,47 +28,22 @@
         border-radius: 2px;
         padding: 0 4px;
       }
-      .hand-drawn-border {
-        border-bottom: 2px solid #4b5563;
-        border-radius: 255px 15px 225px 15px/15px 225px 15px 255px;
-      }
+
       .dotted-line {
         background-image: linear-gradient(to right, #9ca3af 33%, rgba(255,255,255,0) 0%);
         background-position: bottom;
-        background-size: 8px 2px;
+        background-size: 8px 1px;
         background-repeat: repeat-x;
       }
 
-      /* Stabilized Animation - Avoid scaling for sharpness */
-      @keyframes subtle-float {
-        0%, 100% { transform: translateY(0); opacity: 0.8; }
-        50% { transform: translateY(-10px); opacity: 1; }
+      @page {
+        size: A4;
+        margin: 0;
       }
-      .animate-subtle-float {
-        animation: subtle-float 15s ease-in-out infinite;
-      }
-
-      @keyframes trace-pulse {
-        0%, 100% { opacity: 0.4; }
-        50% { opacity: 1; filter: drop-shadow(0 0 2px rgba(234,179,8,0.3)); }
-      }
-      .animate-trace-pulse {
-        animation: trace-pulse 2s ease-in-out infinite;
-      }
-
-      /* Custom Scrollbar for Crispness */
-      ::-webkit-scrollbar {
-        width: 8px;
-      }
-      ::-webkit-scrollbar-track {
-        background: #f8fafc;
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #cbd5e1;
-        border-radius: 10px;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #94a3b8;
+      
+      @media print {
+        body { background: white; }
+        .no-print { display: none !important; }
       }
     </style>
   <script type="importmap">
