@@ -53,7 +53,7 @@ export interface GenerationOptions {
 
 export async function generateWorksheet(options: GenerationOptions): Promise<Worksheet | Worksheet[]> {
   const { 
-    topic, courseContext, educationalLevel, audienceCategory, learnerProfile, 
+    topic, educationalLevel, audienceCategory, learnerProfile, 
     difficulty, language, documentType, questionCounts, 
     rawText, fileData, isMathMode = false, useGrounding = false,
     curriculumStandard = CurriculumStandard.NONE,
@@ -71,31 +71,23 @@ export async function generateWorksheet(options: GenerationOptions): Promise<Wor
     });
   }
 
+  // Optimized prompt for speed
   const promptText = `
-    ROLE: Senior Academic Designer.
-    TASK: Generate ${bulkCount > 1 ? `${bulkCount} unique versions of a` : 'a'} high-quality ${documentType} in ${language}.
+    ROLE: Academic Designer.
+    TASK: Generate ${bulkCount > 1 ? `${bulkCount} unique variants` : 'one version'} of a ${documentType} in ${language}.
     
-    LATEX RULES:
-    1. EVERY mathematical symbol, fraction, or equation MUST be wrapped in single dollar signs like $...$.
-    2. Fractions MUST be written as $\\frac{a}{b}$.
-    3. Even simple numbers like $72 \\frac{11}{12}$ MUST be wrapped in dollar signs if they contain fractions.
-    4. NEVER output raw backslashes without dollar delimiters.
-
-    SOURCE MATERIAL:
-    ${fileData ? '1. Analyze the ATTACHED MEDIA (PDF/Image). This is the primary source.' : ''}
-    ${rawText ? `2. Supplementary instructions: "${rawText}"` : ''}
+    LATEX: Wrap ALL math/fractions/equations in $...$. Fractions use $\\frac{a}{b}$.
     
     CONTEXT:
     - Topic: ${topic}
     - Level: ${audienceCategory} (${educationalLevel})
-    - Learner Profile: ${learnerProfile}
-    - Standards: ${curriculumStandard}
+    - Profile: ${learnerProfile}
     - Difficulty: ${difficulty}
     
-    QUESTION MIX PER SHEET:
+    STRUCTURE PER SHEET:
     ${Object.entries(questionCounts).map(([t, c]) => `- ${t}: ${c}`).join('\n')}
 
-    FORMAT: Return ${bulkCount > 1 ? 'an ARRAY of objects' : 'a single object'} matching the Worksheet structure.
+    FORMAT: Output JSON matching the Worksheet schema.
   `;
   
   parts.push({ text: promptText });
@@ -129,8 +121,9 @@ export async function generateWorksheet(options: GenerationOptions): Promise<Wor
     }
   };
 
+  // Using Flash for much higher speed on large JSON/Bulk outputs
   const response = await ai.models.generateContent({
-    model: "gemini-3-pro-preview",
+    model: "gemini-3-flash-preview", 
     contents: { parts },
     config: {
       tools,
@@ -179,10 +172,40 @@ export async function generateSpeech(text: string): Promise<void> {
   } catch (error) { console.error(error); }
 }
 
+/**
+ * Generates simple doodle images for worksheet decoration using Gemini Flash Image model.
+ * Each doodle is a minimalist black and white line-art icon related to the topic.
+ */
 export async function generateDoodles(topic: string, gradeLevel: string): Promise<string[]> {
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash-image',
-    contents: { parts: [{ text: `Hand-drawn minimalist pencil sketch for "${topic}" for ${gradeLevel}. Black line art, white background.` }] }
-  });
-  return response.candidates?.[0]?.content?.parts?.filter(p => p.inlineData).map(p => `data:${p.inlineData.mimeType};base64,${p.inlineData.data}`) || [];
+  try {
+    const prompt = `Simple hand-drawn black and white minimalist doodle related to ${topic} for a ${gradeLevel} educational worksheet. Single small line art icon. White background.`;
+    
+    // We make 3 parallel calls to get distinct variations for the palette.
+    const results = await Promise.all([1, 2, 3].map(() => 
+      ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: { parts: [{ text: prompt }] },
+        config: {
+          imageConfig: {
+            aspectRatio: "1:1"
+          }
+        }
+      })
+    ));
+
+    const imageUrls: string[] = [];
+    for (const res of results) {
+      if (res.candidates?.[0]?.content?.parts) {
+        for (const part of res.candidates[0].content.parts) {
+          if (part.inlineData) {
+            imageUrls.push(`data:${part.inlineData.mimeType};base64,${part.inlineData.data}`);
+          }
+        }
+      }
+    }
+    return imageUrls;
+  } catch (error) {
+    console.error("Doodle generation failed:", error);
+    return [];
+  }
 }

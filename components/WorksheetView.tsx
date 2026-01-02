@@ -7,7 +7,7 @@ import { uploadFile, getPublicUrl, supabase } from '../services/supabaseClient';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { 
-  Trash2, Edit3, Check, Landmark, Printer, Loader2, Link as LinkIcon, Share2, Volume2, Copy, GripVertical, Image as ImageIcon, PlusCircle, Sparkles, BookOpen, FileText
+  Trash2, Edit3, Check, Landmark, Printer, Loader2, Link as LinkIcon, Share2, Volume2, Copy, GripVertical, Image as ImageIcon, PlusCircle, Sparkles, BookOpen, FileText, MousePointer2
 } from 'lucide-react';
 
 interface WorksheetViewProps {
@@ -118,13 +118,25 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
     }
   })();
 
-  const EditableField = ({ value, onSave, className, multiline = false, placeholder = "", isMath = false }: any) => {
+  const EditableField = ({ value, onSave, className, multiline = false, placeholder = "", isMath = false, label = "" }: any) => {
     const [local, setLocal] = useState(value);
     const [editing, setEditing] = useState(false);
     useEffect(() => setLocal(value), [value]);
     if (!isBuilderMode) return isMath ? <LatexRenderer content={value || placeholder} className={className} /> : <span className={className}>{value || placeholder}</span>;
+    
     if (editing) return multiline ? <textarea autoFocus className={`w-full p-2 border-2 border-blue-400 rounded bg-blue-50 focus:outline-none ${className}`} value={local} onChange={(e) => setLocal(e.target.value)} onBlur={() => { setEditing(false); onSave(local); }} /> : <input autoFocus className={`w-full p-1 border-2 border-blue-400 rounded bg-blue-50 focus:outline-none ${className}`} value={local} onChange={(e) => setLocal(e.target.value)} onBlur={() => { setEditing(false); onSave(local); }} onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()} />;
-    return <span onClick={() => setEditing(true)} className={`cursor-text hover:bg-slate-50 transition-colors p-1 rounded border border-transparent hover:border-slate-200 block min-w-[20px] ${className} ${!value ? 'text-slate-900 font-black' : ''}`}>{isMath ? <LatexRenderer content={value || placeholder} /> : (value || placeholder)}</span>;
+    
+    return (
+      <div className="relative group/field">
+        {label && <span className="absolute -top-4 left-0 text-[7px] font-black uppercase text-blue-500 opacity-0 group-hover/field:opacity-100 transition-opacity">Edit {label}</span>}
+        <span 
+          onClick={() => setEditing(true)} 
+          className={`cursor-text transition-all p-1 rounded border-2 border-transparent hover:border-blue-200 hover:bg-blue-50 block min-w-[20px] ${className} ${!value ? 'text-slate-900 font-black' : ''}`}
+        >
+          {isMath ? <LatexRenderer content={value || placeholder} /> : (value || placeholder)}
+        </span>
+      </div>
+    );
   };
 
   return (
@@ -161,39 +173,33 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
               <div className="flex gap-6 flex-1">
                 <div 
                   onClick={() => logoInputRef.current?.click()} 
-                  className={`w-24 h-24 border-2 border-dashed rounded-2xl flex items-center justify-center cursor-pointer overflow-hidden group/logo relative ${worksheet.logoUrl ? 'border-transparent' : 'border-slate-900 bg-slate-50'}`}
+                  className={`w-24 h-24 border-4 border-double rounded-2xl flex items-center justify-center cursor-pointer overflow-hidden group/logo relative ${worksheet.logoUrl ? 'border-transparent' : 'border-slate-900 bg-slate-50 hover:bg-blue-50 hover:border-blue-400 transition-all'}`}
                 >
                   <input type="file" ref={logoInputRef} className="hidden" accept="image/*" onChange={handleLogoUpload} />
                   {worksheet.logoUrl ? (
                     <>
                       <img src={worksheet.logoUrl} className="w-full h-full object-contain" />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/logo:opacity-100 flex items-center justify-center transition-opacity no-print"><Edit3 className="text-white w-5 h-5" /></div>
+                      <div className="absolute inset-0 bg-blue-600/40 opacity-0 group-hover/logo:opacity-100 flex items-center justify-center transition-opacity no-print"><Edit3 className="text-white w-6 h-6" /></div>
                     </>
                   ) : (
-                    <div className="text-center no-print">
+                    <div className="text-center no-print p-2">
                       <ImageIcon className="w-8 h-8 text-slate-900 mx-auto" />
-                      <span className="text-[8px] font-black uppercase text-slate-900 mt-1 block">Logo</span>
+                      <span className="text-[8px] font-black uppercase text-slate-900 mt-1 block">Click to Upload Logo</span>
                     </div>
                   )}
                   {!worksheet.logoUrl && <Landmark className="w-10 h-10 text-slate-200 absolute pointer-events-none print:hidden" />}
                 </div>
 
                 <div className="space-y-4 flex-1">
-                   <div className="relative group/name">
-                      {isBuilderMode && <div className="absolute -left-6 top-1.5 no-print"><Edit3 className="w-3 h-3 text-blue-500" /></div>}
-                      <EditableField value={worksheet.institutionName || "NAME OF INSTITUTION"} onSave={(v: any) => handleUpdate({...worksheet, institutionName: v})} className={`text-2xl ${themeClasses.header} uppercase tracking-tight text-slate-900 block`} />
-                   </div>
-                   <div className="relative group/std">
-                      {isBuilderMode && <div className="absolute -left-6 top-0 no-print"><Edit3 className="w-3 h-3 text-blue-500" /></div>}
-                      <EditableField value={worksheet.standardReference || "STANDARD ALIGNMENT REFERENCE"} onSave={(v: any) => handleUpdate({...worksheet, standardReference: v})} className="text-[10px] font-black text-slate-900 uppercase tracking-widest block" />
-                   </div>
+                   <EditableField label="Institution" value={worksheet.institutionName || "NAME OF INSTITUTION"} onSave={(v: any) => handleUpdate({...worksheet, institutionName: v})} className={`text-2xl ${themeClasses.header} uppercase tracking-tight text-slate-900 block`} />
+                   <EditableField label="Standards" value={worksheet.standardReference || "STANDARD ALIGNMENT REFERENCE"} onSave={(v: any) => handleUpdate({...worksheet, standardReference: v})} className="text-[10px] font-black text-slate-900 uppercase tracking-widest block" />
                 </div>
               </div>
 
               <div className="text-right">
-                <div className={`inline-block px-3 py-1 text-[9px] font-black uppercase tracking-widest mb-2 text-white ${themeClasses.accentBg}`}>{worksheet.documentType}</div>
+                <div className={`inline-block px-3 py-1 text-[9px] font-black uppercase tracking-widest mb-2 text-white shadow-sm ${themeClasses.accentBg}`}>{worksheet.documentType}</div>
                 <h1 className={`text-4xl ${themeClasses.header} text-slate-900 uppercase leading-none tracking-tighter`}>
-                  <EditableField value={worksheet.title} onSave={(v: any) => handleUpdate({...worksheet, title: v})} />
+                  <EditableField label="Title" value={worksheet.title} onSave={(v: any) => handleUpdate({...worksheet, title: v})} />
                 </h1>
               </div>
             </div>
@@ -202,17 +208,18 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
               <div className={`col-span-2 border-b-2 ${themeClasses.accent} pb-2`}>
                 <span className="text-[10px] font-black uppercase text-slate-900 mb-1 block">Student Name / ID:</span>
               </div>
-              <div className={`border-2 ${themeClasses.accent} p-4 text-center ${themeClasses.itemBg}`}>
+              <div className={`border-2 ${themeClasses.accent} p-4 text-center ${themeClasses.itemBg} relative group/total`}>
                 <span className="text-[10px] font-black uppercase text-slate-900 block mb-1">Total Marks</span>
                 <div className="text-3xl font-black text-slate-900">___ / {totalPoints}</div>
+                {isBuilderMode && <div className="absolute inset-0 bg-blue-50/50 opacity-0 group-hover/total:opacity-100 transition-opacity flex items-center justify-center pointer-events-none no-print"><MousePointer2 className="w-4 h-4 text-blue-500" /></div>}
               </div>
             </div>
           </div>
 
-          <div className={`mb-12 p-6 border-l-4 ${themeClasses.accent} text-sm text-slate-900 bg-slate-50 flex justify-between items-start`}>
+          <div className={`mb-12 p-6 border-l-4 ${themeClasses.accent} text-sm text-slate-900 bg-slate-100/30 flex justify-between items-start rounded-r-xl shadow-sm`}>
             <div className="flex-1">
               <p className="text-[11px] font-black uppercase tracking-widest text-slate-900 mb-2 underline decoration-2 decoration-slate-300">Administrative Instructions:</p>
-              <EditableField multiline value={worksheet.topic || "Please read all questions carefully before answering."} onSave={(v: any) => handleUpdate({...worksheet, topic: v})} isMath={isMathMode} className="font-bold leading-relaxed text-slate-900" />
+              <EditableField label="Instructions" multiline value={worksheet.topic || "Please read all questions carefully before answering."} onSave={(v: any) => handleUpdate({...worksheet, topic: v})} isMath={isMathMode} className="font-bold leading-relaxed text-slate-900" />
             </div>
             <button onClick={() => handleSpeech('intro', worksheet.topic || "")} className="no-print p-2 rounded-lg bg-white border border-slate-200 text-slate-900 hover:text-blue-600 shadow-sm transition-all ml-4"><Volume2 className="w-4 h-4" /></button>
           </div>
@@ -225,18 +232,15 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
                     <div className={`w-8 h-8 flex items-center justify-center font-black text-xs flex-shrink-0 text-white shadow-sm ${themeClasses.rounded} ${themeClasses.accentBg}`}>{idx + 1}</div>
                     <div className="flex-1">
                       <div className="mb-2 flex items-center justify-between">
-                        <EditableField value={q.sectionInstruction || "Section Direction"} onSave={(v: any) => updateQuestion(q.id, {sectionInstruction: v})} className="text-[10px] font-black uppercase text-slate-900 tracking-widest italic" />
+                        <EditableField label="Section instruction" value={q.sectionInstruction || "Section Direction"} onSave={(v: any) => updateQuestion(q.id, {sectionInstruction: v})} className="text-[10px] font-black uppercase text-slate-900 tracking-widest italic" />
                         {isBuilderMode && <button onClick={() => handleUpdate({...worksheet, questions: worksheet.questions.filter(qu => qu.id !== q.id)})} className="no-print p-1 text-slate-300 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>}
                       </div>
-                      <EditableField multiline value={q.question} onSave={(v: any) => updateQuestion(q.id, {question: v})} className="text-xl font-bold text-slate-900 leading-tight block" isMath={true} />
+                      <EditableField label="Question text" multiline value={q.question} onSave={(v: any) => updateQuestion(q.id, {question: v})} className="text-xl font-bold text-slate-900 leading-tight block" isMath={true} />
                     </div>
                   </div>
                   <div className="ml-4 text-right">
                     <span className="text-[10px] font-black text-slate-900 uppercase block">Marks</span>
-                    <div className="flex items-center gap-1">
-                      {isBuilderMode && <Edit3 className="w-3 h-3 text-blue-500 no-print" />}
-                      <EditableField value={String(q.points || 0)} onSave={(v: any) => updateQuestion(q.id, {points: parseInt(v) || 0})} className="font-black text-slate-900 w-10 text-center text-lg" />
-                    </div>
+                    <EditableField label="Points" value={String(q.points || 0)} onSave={(v: any) => updateQuestion(q.id, {points: parseInt(v) || 0})} className="font-black text-slate-900 w-12 text-center text-xl bg-slate-50 border-b border-slate-300" />
                   </div>
                 </div>
 
@@ -244,9 +248,9 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
                   {q.type === QuestionType.MCQ && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {q.options?.map((opt, i) => (
-                        <div key={i} className={`flex items-center gap-3 p-4 border-2 border-slate-200 ${themeClasses.rounded} bg-white shadow-sm`}>
+                        <div key={i} className={`flex items-center gap-3 p-4 border-2 border-slate-200 ${themeClasses.rounded} bg-white shadow-sm hover:border-slate-300 transition-all`}>
                           <div className={`w-6 h-6 border-2 border-slate-900 rounded-full flex-shrink-0`} />
-                          <EditableField value={opt} onSave={(v: any) => { const n = [...(q.options||[])]; n[i]=v; updateQuestion(q.id, {options: n}); }} className={`text-base font-bold text-slate-900`} isMath={true} />
+                          <EditableField label={`Option ${i+1}`} value={opt} onSave={(v: any) => { const n = [...(q.options||[])]; n[i]=v; updateQuestion(q.id, {options: n}); }} className={`text-base font-bold text-slate-900`} isMath={true} />
                         </div>
                       ))}
                     </div>
@@ -268,7 +272,6 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
           </div>
         </div>
 
-        {/* Dedicated Answer Key Section - Only shows when toggle is on */}
         {showKey && (
           <div className="mt-20 pt-20 border-t-4 border-double border-slate-300 relative z-10 page-break-before">
              <div className="flex items-center gap-4 mb-10">
@@ -276,11 +279,11 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
                 <h2 className="text-5xl font-black uppercase tracking-tighter text-red-600">Teacher's Reference</h2>
              </div>
              
-             <div className="bg-red-50/30 p-8 rounded-[2rem] border-2 border-red-100 space-y-12">
+             <div className="bg-red-50/30 p-8 rounded-[2rem] border-2 border-red-100 space-y-12 shadow-inner">
                 {worksheet.questions.map((q, idx) => (
                   <div key={`key-${q.id}`} className="space-y-4">
                      <div className="flex items-center gap-3">
-                        <span className="w-8 h-8 bg-red-600 text-white rounded-lg flex items-center justify-center font-black text-xs">{idx + 1}</span>
+                        <span className="w-8 h-8 bg-red-600 text-white rounded-lg flex items-center justify-center font-black text-xs shadow-md">{idx + 1}</span>
                         <p className="text-sm font-bold text-slate-700 truncate max-w-md">{q.question.replace(/[$]/g, '')}</p>
                      </div>
                      <div className="ml-11">
