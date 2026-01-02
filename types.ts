@@ -100,6 +100,7 @@ export enum ThemeType {
 export interface Question {
   id: string;
   type: QuestionType;
+  sectionInstruction?: string; // Grade-appropriate directive (e.g., "Look at the numbers and add them.")
   question: string;
   options?: string[];
   correctAnswer: string;

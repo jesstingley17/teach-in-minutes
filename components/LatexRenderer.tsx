@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef } from 'react';
+import React, { useMemo } from 'react';
 import katex from 'katex';
 
 interface LatexRendererProps {
@@ -9,31 +9,37 @@ interface LatexRendererProps {
 }
 
 export const LatexRenderer: React.FC<LatexRendererProps> = ({ content, className = "", displayMode = false }) => {
-  const containerRef = useRef<HTMLSpanElement>(null);
+  const parts = useMemo(() => {
+    if (!content) return [];
+    
+    // Regex to find math delimiters: $...$ or $$...$$
+    // We split the string into segments of text and math
+    const regex = /(\$\$[\s\S]*?\$\$|\$.*?\$)/g;
+    return content.split(regex).filter(p => p !== '');
+  }, [content]);
 
-  useEffect(() => {
-    if (containerRef.current) {
-      try {
-        // Find segments between $...$ or $$...$$
-        // For simplicity, we'll try to render the whole block if it's math mode,
-        // or just render the whole thing. Gemini usually outputs LaTeX inside $$.
+  return (
+    <span className={className}>
+      {parts.map((part, index) => {
+        const isMath = (part.startsWith('$') && part.endsWith('$')) || 
+                       (part.startsWith('$$') && part.endsWith('$$'));
         
-        const hasLatex = content.includes('$') || content.includes('\\(') || content.includes('\\[');
-        
-        if (hasLatex) {
-          katex.render(content, containerRef.current, {
-            throwOnError: false,
-            displayMode: displayMode,
-            trust: true
-          });
-        } else {
-          containerRef.current.textContent = content;
+        if (isMath) {
+          try {
+            // Remove delimiters for KaTeX
+            const math = part.replace(/^\$\$?|\$\$?$/g, '');
+            const html = katex.renderToString(math, {
+              throwOnError: false,
+              displayMode: part.startsWith('$$'),
+              trust: true
+            });
+            return <span key={index} dangerouslySetInnerHTML={{ __html: html }} />;
+          } catch (e) {
+            return <span key={index}>{part}</span>;
+          }
         }
-      } catch (e) {
-        containerRef.current.textContent = content;
-      }
-    }
-  }, [content, displayMode]);
-
-  return <span ref={containerRef} className={className} />;
+        return <span key={index}>{part}</span>;
+      })}
+    </span>
+  );
 };

@@ -243,8 +243,11 @@ export async function generateWorksheet(options: GenerationOptions): Promise<Wor
 
     PEDAGOGICAL RULES:
     1. For ${learnerProfile === LearnerProfile.SPECIAL_ED ? 'IEP/Special Ed' : learnerProfile}, adjust vocabulary complexity.
-    2. Use ${isMathMode ? 'LaTeX ($...$ or $$...$$)' : 'standard text'} for all notation.
-    3. Ensure content matches the overarching course context if provided.
+    2. USE LaTeX for all math. Fractions MUST be in $\\frac{a}{b}$ format. Math MUST be wrapped in $...$ delimiters.
+    3. CRITICAL: For every single question, provide a 'sectionInstruction'. This is a short, clear, grade-appropriate directive for the student.
+       - Grade K-2: "Look and circle", "Draw a line".
+       - High School: "Solve for x", "Identify the theme".
+       - University: "Critically evaluate", "Derive the solution".
     
     COUNTS:
     ${Object.entries(questionCounts).map(([t, c]) => `- ${t}: ${c}`).join('\n')}
@@ -271,6 +274,7 @@ export async function generateWorksheet(options: GenerationOptions): Promise<Wor
               properties: {
                 id: { type: Type.STRING },
                 type: { type: Type.STRING, enum: Object.values(QuestionType) },
+                sectionInstruction: { type: Type.STRING, description: "Simple grade-appropriate instruction for the student." },
                 question: { type: Type.STRING },
                 options: { type: Type.ARRAY, items: { type: Type.STRING } },
                 correctAnswer: { type: Type.STRING },
@@ -278,7 +282,7 @@ export async function generateWorksheet(options: GenerationOptions): Promise<Wor
                 isChallenge: { type: Type.BOOLEAN },
                 points: { type: Type.NUMBER }
               },
-              required: ["id", "type", "question", "correctAnswer"]
+              required: ["id", "type", "sectionInstruction", "question", "correctAnswer"]
             }
           }
         },
