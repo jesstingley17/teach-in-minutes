@@ -89,6 +89,7 @@ export interface Worksheet {
   questions: Question[];
   coloringImage?: string; 
   diagramImage?: string;  
+  backgroundImage?: string; // New field for custom theme/background
   savedAt?: number;
 }
 
