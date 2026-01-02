@@ -284,24 +284,50 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
 
                 <div className="ml-14 mt-6">
                   {q.type === QuestionType.MCQ && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {q.options?.map((opt, i) => (
-                        <div key={i} className={`flex items-center gap-4 p-3 border-2 border-slate-100 rounded-lg group/opt transition-all ${showKey && opt === q.correctAnswer ? 'bg-red-50 border-red-200 ring-1 ring-red-100' : ''}`}>
-                          <div className={`w-5 h-5 border-2 border-slate-900 flex items-center justify-center flex-shrink-0 ${showKey && opt === q.correctAnswer ? 'bg-red-600 border-red-600' : ''}`}>
-                             {showKey && opt === q.correctAnswer && <Check className="w-3 h-3 text-white" />}
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {q.options?.map((opt, i) => (
+                          <div key={i} className={`flex items-center gap-4 p-3 border-2 border-slate-100 rounded-lg group/opt transition-all ${showKey && opt === q.correctAnswer ? 'bg-red-50 border-red-200 ring-1 ring-red-100' : ''}`}>
+                            <div className={`w-5 h-5 border-2 border-slate-900 flex items-center justify-center flex-shrink-0 cursor-pointer ${showKey && opt === q.correctAnswer ? 'bg-red-600 border-red-600' : ''}`}
+                                 onClick={() => isBuilderMode && updateQuestion(q.id, {correctAnswer: opt})}>
+                               {showKey && opt === q.correctAnswer && <Check className="w-3 h-3 text-white" />}
+                            </div>
+                            <EditableField 
+                              value={opt} 
+                              onSave={v => {
+                                 const newOpts = [...(q.options || [])];
+                                 newOpts[i] = v;
+                                 updateQuestion(q.id, {options: newOpts});
+                              }} 
+                              className={`text-sm font-medium flex-1 ${showKey && opt === q.correctAnswer ? 'text-red-700 font-bold' : ''}`}
+                              isMath={true}
+                            />
+                            {isBuilderMode && (
+                              <button 
+                                onClick={() => {
+                                  const newOpts = q.options?.filter((_, idx) => idx !== i);
+                                  updateQuestion(q.id, {options: newOpts});
+                                }}
+                                className="p-1 text-slate-300 hover:text-red-500 opacity-0 group-hover/opt:opacity-100 transition-opacity no-print"
+                                title="Delete Option"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
-                          <EditableField 
-                            value={opt} 
-                            onSave={v => {
-                               const newOpts = [...(q.options || [])];
-                               newOpts[i] = v;
-                               updateQuestion(q.id, {options: newOpts});
-                            }} 
-                            className={`text-sm font-medium flex-1 ${showKey && opt === q.correctAnswer ? 'text-red-700 font-bold' : ''}`}
-                            isMath={true}
-                          />
-                        </div>
-                      ))}
+                        ))}
+                      </div>
+                      {isBuilderMode && (
+                        <button 
+                          onClick={() => {
+                            const newOpts = [...(q.options || []), `Option ${(q.options?.length || 0) + 1}`];
+                            updateQuestion(q.id, {options: newOpts});
+                          }}
+                          className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:border-blue-500 hover:text-blue-500 transition-all no-print"
+                        >
+                          <PlusCircle className="w-4 h-4" /> Add Option
+                        </button>
+                      )}
                     </div>
                   )}
 
@@ -323,7 +349,8 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
                     <div className="flex gap-12">
                        {['True', 'False'].map(val => (
                           <div key={val} className={`flex items-center gap-4 ${showKey && q.correctAnswer === val ? 'bg-red-50 p-2 rounded-lg' : ''}`}>
-                             <div className={`w-6 h-6 border-2 border-slate-900 flex items-center justify-center ${showKey && q.correctAnswer === val ? 'bg-red-600 border-red-600 text-white' : ''}`}>
+                             <div className={`w-6 h-6 border-2 border-slate-900 flex items-center justify-center cursor-pointer ${showKey && q.correctAnswer === val ? 'bg-red-600 border-red-600 text-white' : ''}`}
+                                  onClick={() => isBuilderMode && updateQuestion(q.id, {correctAnswer: val})}>
                                 {showKey && q.correctAnswer === val && <Check className="w-4 h-4" />}
                              </div>
                              <span className={`text-sm font-black uppercase tracking-widest ${showKey && q.correctAnswer === val ? 'text-red-700' : 'text-slate-400'}`}>{val}</span>

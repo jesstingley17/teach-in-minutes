@@ -52,6 +52,7 @@ const App: React.FC = () => {
   const [isMathMode, setIsMathMode] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
+  const [showBatchSaveModal, setShowBatchSaveModal] = useState(false);
   
   const [formData, setFormData] = useState({
     topic: '',
@@ -119,6 +120,7 @@ const App: React.FC = () => {
     const updated = [...collections, newColl];
     setCollections(updated);
     localStorage.setItem('tm_v3_collections', JSON.stringify(updated));
+    return newColl.id;
   };
 
   const toggleCollection = (id: string) => {
@@ -193,21 +195,14 @@ const App: React.FC = () => {
   };
 
   const handleBatchArchive = () => {
+    if (selectedBlueprintIds.size === 0) return;
+    setShowBatchSaveModal(true);
+  };
+
+  const performBatchArchive = (collectionId: string) => {
     const targets = blueprints.filter(b => selectedBlueprintIds.has(b.id));
-    if (targets.length === 0) return;
-
-    const collectionName = prompt("Select or Create a Collection for these assets:", "Course Bundle");
-    if (!collectionName) return;
-
-    let targetColl = collections.find(c => c.name.toLowerCase() === collectionName.toLowerCase());
-    if (!targetColl) {
-      targetColl = { id: Math.random().toString(36).substr(2, 9), name: collectionName, createdAt: Date.now() };
-      const newColls = [...collections, targetColl];
-      setCollections(newColls);
-      localStorage.setItem('tm_v3_collections', JSON.stringify(newColls));
-    }
-
     const newSaved = [...savedWorksheets];
+    
     targets.forEach(bp => {
       const wsToSave: Worksheet = bp.worksheet || {
         id: bp.id,
@@ -215,23 +210,23 @@ const App: React.FC = () => {
         topic: bp.topic,
         educationalLevel: formData.educationalLevel,
         documentType: bp.suggestedDocType,
-        questions: [], // Placeholder for draft
+        questions: [], 
         learnerProfile: formData.learnerProfile,
         audienceCategory: formData.audienceCategory,
-        collectionId: targetColl!.id,
+        collectionId: collectionId,
         savedAt: Date.now()
       };
       
       const existingIdx = newSaved.findIndex(s => s.id === wsToSave.id);
-      if (existingIdx > -1) newSaved[existingIdx] = { ...wsToSave, collectionId: targetColl!.id };
-      else newSaved.push({ ...wsToSave, collectionId: targetColl!.id });
+      if (existingIdx > -1) newSaved[existingIdx] = { ...wsToSave, collectionId: collectionId };
+      else newSaved.push({ ...wsToSave, collectionId: collectionId });
     });
 
     localStorage.setItem('tm_v3_saved', JSON.stringify(newSaved));
     setSavedWorksheets(newSaved);
     setBlueprints(prev => prev.map(b => selectedBlueprintIds.has(b.id) ? { ...b, status: 'saved' } : b));
     setSelectedBlueprintIds(new Set());
-    alert(`Archived ${targets.length} items to ${collectionName}`);
+    setShowBatchSaveModal(false);
   };
 
   const handleBatchDelete = () => {
@@ -240,7 +235,6 @@ const App: React.FC = () => {
     setSelectedBlueprintIds(new Set());
   };
 
-  // Fixes Error in file App.tsx on line 516: Cannot find name 'handleManualBatch'.
   const handleManualBatch = () => {
     if (!formData.rawText.trim()) return;
     const items = formData.rawText.split('\n').map(l => l.trim()).filter(l => l);
@@ -255,7 +249,6 @@ const App: React.FC = () => {
     setMode(AppMode.BLUEPRINT_DASHBOARD);
   };
 
-  // Fixes Error in file App.tsx on line 581: Cannot find name 'handleGenerate'.
   const handleGenerate = async () => {
     setLoading(true);
     try {
@@ -557,7 +550,6 @@ const App: React.FC = () => {
                              <div className="relative">
                                 <div className="flex justify-between items-center mb-2">
                                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Or Bulk Paste Assessment Titles</label>
-                                  {/* Error in file App.tsx on line 516 fixed by handleManualBatch definition above */}
                                   <button onClick={handleManualBatch} className="text-[10px] font-black uppercase text-blue-600 hover:underline">Draft Map</button>
                                 </div>
                                 <textarea 
@@ -614,10 +606,8 @@ const App: React.FC = () => {
                                       <div key={type} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col items-center">
                                          <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 mb-2">{type}</span>
                                          <div className="flex items-center gap-4">
-                                            {/* Error in file App.tsx on line 572: arithmetic op fix */}
                                             <button onClick={() => setFormData(p => ({...p, questionCounts: {...p.questionCounts, [type]: Math.max(0, (count as number) - 1)}}))} className="text-slate-300"><Minus className="w-4 h-4" /></button>
                                             <span className="text-xl font-black">{count as number}</span>
-                                            {/* Error in file App.tsx on line 574: operator + fix */}
                                             <button onClick={() => setFormData(p => ({...p, questionCounts: {...p.questionCounts, [type]: (count as number) + 1}}))} className="text-slate-300"><Plus className="w-4 h-4" /></button>
                                          </div>
                                       </div>
@@ -625,7 +615,6 @@ const App: React.FC = () => {
                                 </div>
                              </div>
                              
-                             {/* Error in file App.tsx on line 581: handleGenerate defined above */}
                              <button onClick={handleGenerate} className="w-full py-8 bg-slate-900 text-white rounded-[2.5rem] font-black text-2xl uppercase tracking-widest hover:bg-slate-800 transition-all shadow-2xl flex items-center justify-center gap-4">
                                 <Sparkles className="w-8 h-8 text-yellow-400" /> Assemble Assets
                              </button>
@@ -708,6 +697,45 @@ const App: React.FC = () => {
                           </div>
                        </div>
                     )}
+                 </div>
+               )}
+
+               {showBatchSaveModal && (
+                 <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[200] flex items-center justify-center p-6 no-print">
+                    <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl p-10 animate-in zoom-in-95 duration-200">
+                       <div className="flex justify-between items-start mb-8">
+                          <div>
+                             <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900">Batch Archive</h3>
+                             <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-1">Move {selectedBlueprintIds.size} items to a container</p>
+                          </div>
+                          <button onClick={() => setShowBatchSaveModal(false)} className="p-2"><CloseIcon className="w-6 h-6" /></button>
+                       </div>
+                       
+                       <div className="space-y-3 mb-10 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                          {collections.map(coll => (
+                             <button 
+                               key={coll.id} 
+                               onClick={() => performBatchArchive(coll.id)}
+                               className="w-full flex items-center gap-4 p-5 rounded-2xl border-2 border-slate-50 hover:border-slate-900 transition-all text-left group"
+                             >
+                                <Folder className="w-6 h-6 text-slate-300 group-hover:text-yellow-500" />
+                                <div>
+                                   <div className="font-black text-sm uppercase tracking-tight text-slate-800">{coll.name}</div>
+                                   <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                      {savedWorksheets.filter(sw => sw.collectionId === coll.id).length} Current Assets
+                                   </div>
+                                </div>
+                             </button>
+                          ))}
+                       </div>
+                       
+                       <button onClick={() => {
+                          const id = createNewCollection();
+                          if (id) performBatchArchive(id);
+                       }} className="w-full py-4 border-2 border-dashed border-slate-200 rounded-2xl font-black text-[10px] uppercase tracking-widest text-slate-400 hover:text-blue-500 hover:border-blue-500 transition-all flex items-center justify-center gap-2">
+                          <FolderPlus className="w-4 h-4" /> Create & Archive Here
+                       </button>
+                    </div>
                  </div>
                )}
 
