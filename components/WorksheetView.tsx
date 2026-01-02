@@ -2,15 +2,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Worksheet, QuestionType, Question, LayoutStyle } from '../types.ts';
 import { LatexRenderer } from './LatexRenderer.tsx';
-import { SketchyBorderBox, DoodlePalette, HelenCharacter } from './HandwritingElements.tsx';
+import { SketchyBorderBox, DoodlePalette, HelenCharacter, DraggableLineRow, SymbolDrillRow } from './HandwritingElements.tsx';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { authenticateGoogleDrive, uploadToGoogleDrive } from '../services/googleDriveService.ts';
+// Fixed: Added missing 'Sparkles' import from lucide-react.
 import { 
   Edit3, Check, Landmark, Printer, Loader2, ShieldCheck, PenTool, QrCode, BookOpen, Star,
   Settings, X, Monitor, Maximize, FileText, Type as TypeIcon, Hash, ChevronRight,
   Palette, MousePointer2, Briefcase, GraduationCap as CapIcon, PlayCircle, Trash2, PlusCircle,
-  Save, Cloud
+  Save, Cloud, Scissors, ListOrdered, Braces, AlignLeft, Layout, Sparkles
 } from 'lucide-react';
 
 interface WorksheetViewProps {
@@ -178,7 +179,6 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
   const handleUploadToDrive = async () => {
     setIsUploadingToDrive(true);
     try {
-      // Get custom client ID if set in branding
       const branding = JSON.parse(localStorage.getItem('institutional_branding') || '{}');
       const token = await authenticateGoogleDrive(branding.googleClientId);
       const blob = await generatePdfBlob();
@@ -201,6 +201,29 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
     handleUpdate({
       ...worksheet,
       questions: worksheet.questions.map(q => q.id === id ? { ...q, ...updates } : q)
+    });
+  };
+
+  const addQuestion = (type: QuestionType) => {
+    const newQ: Question = {
+      id: Math.random().toString(36).substr(2, 9),
+      type,
+      question: type === QuestionType.PAGE_BREAK ? "--- Page Break Segment ---" : `New ${type.replace('_', ' ')} Instruction`,
+      correctAnswer: type === QuestionType.PAGE_BREAK ? "" : "Sample Solution",
+      explanation: "",
+      points: type === QuestionType.PAGE_BREAK ? 0 : 5,
+      options: type === QuestionType.MCQ ? ["Option A", "Option B", "Option C"] : undefined
+    };
+    handleUpdate({
+      ...worksheet,
+      questions: [...worksheet.questions, newQ]
+    });
+  };
+
+  const deleteQuestion = (id: string) => {
+    handleUpdate({
+      ...worksheet,
+      questions: worksheet.questions.filter(q => q.id !== id)
     });
   };
 
@@ -250,7 +273,7 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
           <div className="flex gap-4 items-center flex-wrap">
             <button onClick={() => setIsBuilderMode(!isBuilderMode)} className={`flex items-center gap-2 px-4 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all ${isBuilderMode ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-50 hover:bg-slate-100'}`}>
               {isBuilderMode ? <Check className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}
-              {isBuilderMode ? 'Commit Changes' : 'Architect Mode'}
+              {isBuilderMode ? 'Commit Design' : 'Architect Mode'}
             </button>
             <button 
               onClick={handleSaveDraft} 
@@ -416,48 +439,141 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
            <div className="pt-12 border-t border-slate-100 space-y-16">
               <h2 className={`text-2xl font-black uppercase tracking-tight flex items-center gap-4 ${getHeaderFont()}`}><PenTool className="w-6 h-6" /> Assessment Manifest</h2>
               <div className="space-y-16">
-                {worksheet.questions.map((q, idx) => (
-                  <div key={q.id}>
-                     <div className="flex justify-between items-start mb-6">
-                        <div className="flex gap-6 items-start flex-1">
-                           <div className={`w-10 h-10 border-2 border-slate-900 flex items-center justify-center font-black ${selectedStyle === 'Creative' ? 'rounded-full border-dashed rotate-6' : ''}`}><span className="text-lg">{idx + 1}</span></div>
-                           <div className="flex-1"><h3 className={`text-xl font-bold text-slate-900 leading-tight ${selectedStyle === 'Modern' ? 'tracking-tight' : ''}`}><EditableField multiline value={q.question} onSave={(v: any) => updateQuestion(q.id, {question: v})} /></h3></div>
-                        </div>
-                        <div className="ml-8 text-center min-w-[50px]">
-                           <span className="text-[7px] font-black text-slate-300 uppercase block">PTS</span>
-                           <input type="number" className="font-black text-slate-900 w-full text-center text-lg bg-transparent" value={q.points || 0} onChange={(e) => updateQuestion(q.id, { points: parseInt(e.target.value) || 0 })} />
-                        </div>
-                     </div>
-                     <div className="ml-16">
-                        {q.options && (
-                           <div className="space-y-4">
-                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {q.options.map((opt, i) => (
-                                   <div key={i} className={`flex items-center gap-3 p-3 border border-slate-100 bg-slate-50/50 group/opt ${selectedStyle === 'Creative' ? 'rounded-2xl rotate-[0.5deg]' : ''}`}>
-                                      <span className="w-6 h-6 flex-shrink-0 flex items-center justify-center border border-slate-200 text-[8px] font-black text-slate-300">{String.fromCharCode(65 + i)}</span>
-                                      <div className="flex-1"><EditableField value={opt} onSave={(v: any) => { const n = [...(q.options||[])]; n[i]=v; updateQuestion(q.id, {options: n}); }} className="text-xs font-medium" /></div>
-                                      {isBuilderMode && (
-                                        <button onClick={() => deleteOption(q.id, i)} className="p-1 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover/opt:opacity-100 no-print" title="Delete Option"><Trash2 className="w-3.5 h-3.5" /></button>
-                                      )}
-                                   </div>
-                                ))}
+                {worksheet.questions.map((q, idx) => {
+                  if (q.type === QuestionType.PAGE_BREAK) {
+                    return (
+                      <div key={q.id} className="relative group/break no-print">
+                         <div className="flex items-center gap-4 py-8 border-y-2 border-dashed border-slate-100 text-slate-300 font-black text-[10px] uppercase tracking-[0.5em] justify-center opacity-40 hover:opacity-100 transition-opacity">
+                            <Scissors className="w-4 h-4" /> Material Segment Boundary
+                         </div>
+                         <div className="page-break-before" />
+                         {isBuilderMode && (
+                            <button onClick={() => deleteQuestion(q.id)} className="absolute right-0 top-1/2 -translate-y-1/2 p-2 text-red-300 hover:text-red-500 opacity-0 group-hover/break:opacity-100 transition-all"><Trash2 className="w-4 h-4" /></button>
+                         )}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div key={q.id} className="relative group/q">
+                       <div className="flex justify-between items-start mb-6">
+                          <div className="flex gap-6 items-start flex-1">
+                             <div className={`w-10 h-10 border-2 border-slate-900 flex items-center justify-center font-black ${selectedStyle === 'Creative' ? 'rounded-full border-dashed rotate-6' : ''}`}><span className="text-lg">{idx + 1}</span></div>
+                             <div className="flex-1">
+                                <h3 className={`text-xl font-bold text-slate-900 leading-tight ${selectedStyle === 'Modern' ? 'tracking-tight' : ''}`}>
+                                   <EditableField multiline value={q.question} onSave={(v: any) => updateQuestion(q.id, {question: v})} />
+                                </h3>
                              </div>
-                             {isBuilderMode && (
-                               <button onClick={() => addOption(q.id)} className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-slate-100 rounded-xl text-[10px] font-black uppercase text-slate-300 hover:border-blue-300 hover:text-blue-500 transition-all no-print"><PlusCircle className="w-4 h-4" /> Add Option</button>
-                             )}
-                           </div>
-                        )}
-                        {(q.type === QuestionType.SHORT_ANSWER || q.type === QuestionType.ESSAY) && (
-                           <div className="space-y-4 pt-4">
-                              <div className={`h-[0.5px] bg-slate-200 w-full ${selectedStyle === 'Creative' ? 'border-b border-dashed bg-transparent h-1' : ''}`} />
-                              <div className={`h-[0.5px] bg-slate-200 w-full opacity-50 ${selectedStyle === 'Creative' ? 'border-b border-dashed bg-transparent h-1' : ''}`} />
-                              {q.type === QuestionType.ESSAY && <div className={`h-[0.5px] bg-slate-200 w-full opacity-20 ${selectedStyle === 'Creative' ? 'border-b border-dashed bg-transparent h-1' : ''}`} />}
-                           </div>
-                        )}
-                     </div>
-                  </div>
-                ))}
+                          </div>
+                          <div className="ml-8 text-center min-w-[50px]">
+                             <span className="text-[7px] font-black text-slate-300 uppercase block">PTS</span>
+                             <input type="number" className="font-black text-slate-900 w-full text-center text-lg bg-transparent" value={q.points || 0} onChange={(e) => updateQuestion(q.id, { points: parseInt(e.target.value) || 0 })} />
+                          </div>
+                          {isBuilderMode && (
+                             <button onClick={() => deleteQuestion(q.id)} className="ml-4 p-2 text-red-300 hover:text-red-500 opacity-0 group-hover/q:opacity-100 transition-all no-print"><Trash2 className="w-4 h-4" /></button>
+                          )}
+                       </div>
+
+                       <div className="ml-16">
+                          {q.options && (
+                             <div className="space-y-4">
+                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  {q.options.map((opt, i) => (
+                                     <div key={i} className={`flex items-center gap-3 p-3 border border-slate-100 bg-slate-50/50 group/opt ${selectedStyle === 'Creative' ? 'rounded-2xl rotate-[0.5deg]' : ''}`}>
+                                        <span className="w-6 h-6 flex-shrink-0 flex items-center justify-center border border-slate-200 text-[8px] font-black text-slate-300">{String.fromCharCode(65 + i)}</span>
+                                        <div className="flex-1"><EditableField value={opt} onSave={(v: any) => { const n = [...(q.options||[])]; n[i]=v; updateQuestion(q.id, {options: n}); }} className="text-xs font-medium" /></div>
+                                        {isBuilderMode && (
+                                          <button onClick={() => deleteOption(q.id, i)} className="p-1 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover/opt:opacity-100 no-print" title="Delete Option"><Trash2 className="w-3.5 h-3.5" /></button>
+                                        )}
+                                     </div>
+                                  ))}
+                               </div>
+                               {isBuilderMode && (
+                                 <button onClick={() => addOption(questionId)} className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-slate-100 rounded-xl text-[10px] font-black uppercase text-slate-300 hover:border-blue-300 hover:text-blue-500 transition-all no-print"><PlusCircle className="w-4 h-4" /> Add Option</button>
+                               )}
+                             </div>
+                          )}
+
+                          {q.type === QuestionType.CHARACTER_DRILL && (
+                             <SymbolDrillRow symbols={q.question.charAt(0) || 'A'} />
+                          )}
+                          
+                          {q.type === QuestionType.SYMBOL_DRILL && (
+                             <SymbolDrillRow symbols={q.question} />
+                          )}
+
+                          {q.type === QuestionType.SENTENCE_DRILL && (
+                             <DraggableLineRow text={q.question} showTraceButton />
+                          )}
+
+                          {q.type === QuestionType.CREATIVE_PROMPT && (
+                             <div className="mt-4 border-2 border-dashed border-slate-100 rounded-[2rem] h-48 bg-slate-50/20" />
+                          )}
+
+                          {q.type === QuestionType.LAB_PROCEDURE && (
+                             <div className="mt-4 space-y-4">
+                                <div className="flex items-center gap-2 text-[10px] font-black uppercase text-slate-300"><Scissors className="w-3 h-3" /> Experimental Setup Area</div>
+                                <div className="grid grid-cols-2 gap-4">
+                                   <div className="h-32 border border-slate-100 rounded-xl bg-slate-50/30" />
+                                   <div className="h-32 border border-slate-100 rounded-xl bg-slate-50/30" />
+                                </div>
+                             </div>
+                          )}
+
+                          {(q.type === QuestionType.SHORT_ANSWER || q.type === QuestionType.ESSAY || q.type === QuestionType.VOCABULARY) && (
+                             <div className="space-y-4 pt-4">
+                                <div className={`h-[0.5px] bg-slate-200 w-full ${selectedStyle === 'Creative' ? 'border-b border-dashed bg-transparent h-1' : ''}`} />
+                                <div className={`h-[0.5px] bg-slate-200 w-full opacity-50 ${selectedStyle === 'Creative' ? 'border-b border-dashed bg-transparent h-1' : ''}`} />
+                                {q.type === QuestionType.ESSAY && <div className={`h-[0.5px] bg-slate-200 w-full opacity-20 ${selectedStyle === 'Creative' ? 'border-b border-dashed bg-transparent h-1' : ''}`} />}
+                             </div>
+                          )}
+                       </div>
+                    </div>
+                  );
+                })}
               </div>
+              
+              {isBuilderMode && (
+                <div className="mt-16 no-print border-t-4 border-slate-50 pt-12 animate-in slide-in-from-bottom-4">
+                   <h4 className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-400 mb-8 flex items-center gap-3">
+                      <Layout className="w-5 h-5" /> Append Architectural Nodes
+                   </h4>
+                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <button onClick={() => addQuestion(QuestionType.MCQ)} className="flex flex-col items-center gap-3 p-6 bg-white border-2 border-slate-100 rounded-3xl hover:border-blue-500 hover:bg-blue-50 transition-all group">
+                         <div className="p-3 bg-slate-50 rounded-xl group-hover:bg-white group-hover:text-blue-600 transition-all"><ListOrdered className="w-6 h-6" /></div>
+                         <span className="text-[9px] font-black uppercase">Standard MCQ</span>
+                      </button>
+                      <button onClick={() => addQuestion(QuestionType.SHORT_ANSWER)} className="flex flex-col items-center gap-3 p-6 bg-white border-2 border-slate-100 rounded-3xl hover:border-blue-500 hover:bg-blue-50 transition-all group">
+                         <div className="p-3 bg-slate-50 rounded-xl group-hover:bg-white group-hover:text-blue-600 transition-all"><TypeIcon className="w-6 h-6" /></div>
+                         <span className="text-[9px] font-black uppercase">Free Response</span>
+                      </button>
+                      <button onClick={() => addQuestion(QuestionType.SENTENCE_DRILL)} className="flex flex-col items-center gap-3 p-6 bg-white border-2 border-slate-100 rounded-3xl hover:border-blue-500 hover:bg-blue-50 transition-all group">
+                         <div className="p-3 bg-slate-50 rounded-xl group-hover:bg-white group-hover:text-blue-600 transition-all"><AlignLeft className="w-6 h-6" /></div>
+                         <span className="text-[9px] font-black uppercase">Sentence Drill</span>
+                      </button>
+                      <button onClick={() => addQuestion(QuestionType.SYMBOL_DRILL)} className="flex flex-col items-center gap-3 p-6 bg-white border-2 border-slate-100 rounded-3xl hover:border-blue-500 hover:bg-blue-50 transition-all group">
+                         <div className="p-3 bg-slate-50 rounded-xl group-hover:bg-white group-hover:text-blue-600 transition-all"><Braces className="w-6 h-6" /></div>
+                         <span className="text-[9px] font-black uppercase">Symbol Drill</span>
+                      </button>
+                      <button onClick={() => addQuestion(QuestionType.LAB_PROCEDURE)} className="flex flex-col items-center gap-3 p-6 bg-white border-2 border-slate-100 rounded-3xl hover:border-blue-500 hover:bg-blue-50 transition-all group">
+                         <div className="p-3 bg-slate-50 rounded-xl group-hover:bg-white group-hover:text-blue-600 transition-all"><Settings className="w-6 h-6" /></div>
+                         <span className="text-[9px] font-black uppercase">Lab Procedure</span>
+                      </button>
+                      <button onClick={() => addQuestion(QuestionType.CREATIVE_PROMPT)} className="flex flex-col items-center gap-3 p-6 bg-white border-2 border-slate-100 rounded-3xl hover:border-blue-500 hover:bg-blue-50 transition-all group">
+                         <div className="p-3 bg-slate-50 rounded-xl group-hover:bg-white group-hover:text-blue-600 transition-all"><Sparkles className="w-6 h-6" /></div>
+                         <span className="text-[9px] font-black uppercase">Creative Prompt</span>
+                      </button>
+                      <button onClick={() => addQuestion(QuestionType.CHARACTER_DRILL)} className="flex flex-col items-center gap-3 p-6 bg-white border-2 border-slate-100 rounded-3xl hover:border-blue-500 hover:bg-blue-50 transition-all group">
+                         <div className="p-3 bg-slate-50 rounded-xl group-hover:bg-white group-hover:text-blue-600 transition-all"><PenTool className="w-6 h-6" /></div>
+                         <span className="text-[9px] font-black uppercase">Letter Drill</span>
+                      </button>
+                      <button onClick={() => addQuestion(QuestionType.PAGE_BREAK)} className="flex flex-col items-center gap-3 p-6 bg-white border-2 border-slate-100 rounded-3xl hover:border-blue-500 hover:bg-blue-50 transition-all group">
+                         <div className="p-3 bg-slate-50 rounded-xl group-hover:bg-white group-hover:text-blue-600 transition-all"><Scissors className="w-6 h-6" /></div>
+                         <span className="text-[9px] font-black uppercase">Page Break</span>
+                      </button>
+                   </div>
+                </div>
+              )}
            </div>
            {doodles.map((d, i) => (
              <img key={i} src={d} className="absolute pointer-events-none opacity-10 mix-blend-multiply w-32 h-32" style={{ top: `${15 + i*20}%`, left: i%2===0 ? '3%' : '85%' }} />
@@ -474,7 +590,7 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
                 <ShieldCheck className="w-10 h-10" /><h2 className={`text-5xl font-black uppercase tracking-tighter italic ${getHeaderFont()}`}>Key Registry</h2>
              </div>
              <div className="space-y-12">
-                {worksheet.questions.map((q, idx) => (
+                {worksheet.questions.filter(q => q.type !== QuestionType.PAGE_BREAK).map((q, idx) => (
                   <div key={`key-${q.id}`} className="flex gap-10 items-start border-l-2 border-slate-200 pl-10">
                      <span className="text-2xl font-black opacity-10 mt-1">{idx + 1}</span>
                      <div className="flex-1 space-y-4">
