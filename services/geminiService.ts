@@ -21,6 +21,7 @@ export interface GenerationOptions {
 
 /**
  * Advanced analysis that extracts multiple assessment opportunities from course material.
+ * Now includes origin mapping (Module/Lesson).
  */
 export async function analyzeCourseForBlueprints(
   fileData?: { data: string; mimeType: string },
@@ -43,7 +44,7 @@ export async function analyzeCourseForBlueprints(
     OUTPUT REQUIREMENTS:
     1. Identify a logical Course Title.
     2. Suggest 4-6 specific Assessments (Worksheets/Exams/Quizzes) based on the sub-topics found.
-    3. For each assessment, provide a title and a detailed topic scope.
+    3. For each assessment, provide a title, detailed topic scope, and the logical Module and Lesson it belongs to (e.g., "Module 1", "Lesson 3").
     
     FORMAT: Return JSON.
   `;
@@ -69,9 +70,11 @@ export async function analyzeCourseForBlueprints(
                 properties: {
                   title: { type: Type.STRING },
                   topic: { type: Type.STRING },
-                  suggestedDocType: { type: Type.STRING, enum: Object.values(DocumentType) }
+                  suggestedDocType: { type: Type.STRING, enum: Object.values(DocumentType) },
+                  originModule: { type: Type.STRING },
+                  originLesson: { type: Type.STRING }
                 },
-                required: ["title", "topic", "suggestedDocType"]
+                required: ["title", "topic", "suggestedDocType", "originModule", "originLesson"]
               }
             }
           },

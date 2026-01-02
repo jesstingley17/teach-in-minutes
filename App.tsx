@@ -16,7 +16,8 @@ import {
   Baby, School, Building2, UserCircle, 
   Zap, Brain, Languages, Users, Layout, 
   BookOpen, ChevronRight, MoreHorizontal, CheckCircle,
-  File, X as CloseIcon, Sparkles, Grid3X3, ListTodo, Edit
+  File, X as CloseIcon, Sparkles, Grid3X3, ListTodo, Edit,
+  Link as LinkIcon, Bookmark
 } from 'lucide-react';
 
 const CATEGORIES = [
@@ -171,12 +172,14 @@ const App: React.FC = () => {
     const sections = formData.rawText.split('\n').filter(s => s.trim().length > 3);
     if (sections.length === 0) return alert("Paste some section names first!");
     
-    const newBlueprints: AssessmentBlueprint[] = sections.map(s => ({
+    const newBlueprints: AssessmentBlueprint[] = sections.map((s, idx) => ({
       id: Math.random().toString(36).substr(2, 9),
       title: s.split(':')[0] || 'Assessment',
       topic: s,
       status: 'draft',
-      suggestedDocType: DocumentType.QUIZ
+      suggestedDocType: DocumentType.QUIZ,
+      originModule: `Batch ${Math.floor(idx/3) + 1}`,
+      originLesson: `Task ${idx + 1}`
     }));
     
     setBlueprints(newBlueprints);
@@ -281,13 +284,24 @@ const App: React.FC = () => {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                        {blueprints.map((bp, i) => (
-                         <div key={bp.id} className={`bg-white p-8 rounded-[2.5rem] shadow-xl border-2 transition-all group flex flex-col justify-between ${bp.status === 'ready' ? 'border-green-400' : bp.status === 'saved' ? 'border-blue-400 opacity-60' : 'border-slate-100 hover:border-slate-300'}`}>
-                            <div>
+                         <div key={bp.id} className={`bg-white p-8 rounded-[2.5rem] shadow-xl border-2 transition-all group flex flex-col justify-between relative overflow-hidden ${bp.status === 'ready' ? 'border-green-400' : bp.status === 'saved' ? 'border-blue-400 opacity-60' : 'border-slate-100 hover:border-slate-300'}`}>
+                            
+                            {/* Lesson/Module Metadata Badge */}
+                            {(bp.originModule || bp.originLesson) && (
+                               <div className="absolute top-0 right-0 p-3 flex gap-2">
+                                  <div className="bg-slate-900 text-white px-3 py-1 rounded-bl-2xl rounded-tr-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 shadow-lg">
+                                     <Bookmark className="w-3 h-3 text-yellow-400" />
+                                     {bp.originModule} • {bp.originLesson}
+                                  </div>
+                               </div>
+                            )}
+
+                            <div className="pt-6">
                                <div className="flex justify-between items-start mb-6">
                                   <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${bp.status === 'ready' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-400'}`}>
                                      {bp.status}
                                   </span>
-                                  <span className="text-slate-200 font-black text-2xl tracking-tighter">#0{i+1}</span>
+                                  <span className="text-slate-100 font-black text-3xl tracking-tighter">#{(i+1).toString().padStart(2, '0')}</span>
                                </div>
                                <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tight mb-3 leading-tight">{bp.title}</h3>
                                <p className="text-slate-400 text-[10px] font-bold uppercase mb-8 line-clamp-2 leading-relaxed">{bp.topic}</p>
@@ -297,7 +311,7 @@ const App: React.FC = () => {
                                {bp.status === 'ready' || bp.status === 'saved' ? (
                                  <button 
                                    onClick={() => { setWorksheet(bp.worksheet!); setMode(AppMode.WORKSHEET); }}
-                                   className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-800 transition-all"
+                                   className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg"
                                  >
                                     <FileText className="w-4 h-4" /> Open Editor
                                  </button>

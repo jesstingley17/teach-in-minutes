@@ -43,6 +43,8 @@ export interface AssessmentBlueprint {
   status: 'draft' | 'generating' | 'ready' | 'saved';
   worksheet?: Worksheet;
   suggestedDocType: DocumentType;
+  originModule?: string; // e.g., "Module 1"
+  originLesson?: string;  // e.g., "Lesson 2"
 }
 
 export interface CourseModule {
