@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { AppMode, Worksheet, ThemeType, QuestionType, DocumentType, AudienceCategory, LearnerProfile, CurriculumStandard, BrandingConfig, LayoutStyle, CognitiveDepth } from './types.ts';
 import { generateWorksheet } from './services/geminiService.ts';
+import { uploadAsset } from './services/blobService.ts';
 import { WorksheetView } from './components/WorksheetView.tsx';
 import { QuizView } from './components/QuizView.tsx';
 import { 
@@ -9,7 +10,8 @@ import {
   BookOpen, XCircle, Library, Eye,
   Languages, BrainCircuit, Star, Zap, Construction, Target,
   Settings, Layers, ChevronRight, Layout, Palette, Trash2, ArrowLeft,
-  Settings2, Sliders, ListChecks, Hash, Gauge, Microscope, Copy, Check, User, PlayCircle
+  Settings2, Sliders, ListChecks, Hash, Gauge, Microscope, Copy, Check, User, PlayCircle,
+  Image as ImageIcon
 } from 'lucide-react';
 
 const DEFAULT_BRANDING: BrandingConfig = {
@@ -29,6 +31,7 @@ const App: React.FC = () => {
   const [currentBulkSet, setCurrentBulkSet] = useState<Worksheet[]>([]);
   const [savedWorksheets, setSavedWorksheets] = useState<Worksheet[]>([]);
   const [loading, setLoading] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [showTeacherKey, setShowTeacherKey] = useState(false);
   const [editingContainerIdx, setEditingContainerIdx] = useState<number | null>(null);
   
@@ -57,6 +60,7 @@ const App: React.FC = () => {
   });
 
   const guidelineInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     // Initialize Local Session
@@ -83,6 +87,23 @@ const App: React.FC = () => {
     const prefix = user?.id || 'local-arch';
     const local = JSON.parse(localStorage.getItem(`archive_${prefix}`) || '[]');
     setSavedWorksheets(local);
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingLogo(true);
+    try {
+      const url = await uploadAsset(file);
+      const updatedBranding = { ...branding, logoUrl: url };
+      setBranding(updatedBranding);
+      localStorage.setItem('institutional_branding', JSON.stringify(updatedBranding));
+    } catch (err) {
+      alert("Logo upload failed. Ensure environment credentials are set.");
+    } finally {
+      setUploadingLogo(false);
+    }
   };
 
   const handleGenerate = async () => {
@@ -426,6 +447,26 @@ const App: React.FC = () => {
                      <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Instructor Identity</label>
                         <input className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold" value={branding.instructorName} onChange={e => { const n = {...branding, instructorName: e.target.value}; setBranding(n); localStorage.setItem('institutional_branding', JSON.stringify(n)); }} />
+                     </div>
+                     <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Institution Logo</label>
+                        <div className="flex items-center gap-4">
+                          <button 
+                            onClick={() => logoInputRef.current?.click()}
+                            disabled={uploadingLogo}
+                            className={`flex-1 p-4 border-2 border-dashed rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${uploadingLogo ? 'bg-slate-50 text-slate-300' : 'bg-white hover:border-slate-900'}`}
+                          >
+                            {uploadingLogo ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
+                            {branding.logoUrl ? 'Update Logo Asset' : 'Attach Signature Logo'}
+                          </button>
+                          {branding.logoUrl && (
+                            <div className="w-16 h-16 bg-slate-50 rounded-2xl border flex items-center justify-center p-2">
+                               <img src={branding.logoUrl} className="max-w-full max-h-full object-contain" alt="Preview" />
+                            </div>
+                          )}
+                        </div>
+                        <input type="file" ref={logoInputRef} className="hidden" accept="image/*" onChange={handleLogoUpload} />
+                        <p className="text-[8px] font-bold text-slate-300 uppercase mt-1">Cloud Sync: Supported via Vercel Blob</p>
                      </div>
                   </div>
                   <div className="p-8 bg-slate-900 rounded-[2.5rem] text-white flex flex-col items-center justify-center text-center">
