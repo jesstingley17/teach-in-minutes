@@ -12,8 +12,9 @@ export const LatexRenderer: React.FC<LatexRendererProps> = ({ content, className
   const parts = useMemo(() => {
     if (!content) return [];
     
-    // Regex to find $...$, $$...$$, or strings starting with common LaTeX commands like \frac, \sqrt, etc.
-    const regex = /(\$\$[\s\S]*?\$\$|\$.*?\$|\\(?:frac|sqrt|cdot|times|sum|int|infty|alpha|beta|gamma|pm|div|degree|approx)\{?.*?\}?)/g;
+    // Improved regex to find math delimiters OR common naked LaTeX commands like \frac, \sqrt, \pm
+    // This ensures that even if the AI misses the $, the command still renders as math.
+    const regex = /(\$\$[\s\S]*?\$\$|\$.*?\$|\\\(.*?\\\)|\\\[.*?\\\]|\\frac\{.*?\}\{.*?\}|\\sqrt\{.*?\}|\\pm|\\times|\\div|\\cdot|\\sum|\\int|\\infty|\\alpha|\\beta|\\gamma|\\delta|\\theta|\\pi|\\sigma|\\omega|\\approx|\\neq|\\leq|\\geq)/g;
     return content.split(regex).filter(p => p !== '');
   }, [content]);
 
@@ -21,16 +22,26 @@ export const LatexRenderer: React.FC<LatexRendererProps> = ({ content, className
     <span className={className}>
       {parts.map((part, index) => {
         const isMathDelimited = (part.startsWith('$') && part.endsWith('$')) || 
-                                (part.startsWith('$$') && part.endsWith('$$'));
-        const isRawLatexPattern = part.startsWith('\\');
+                                (part.startsWith('$$') && part.endsWith('$$')) ||
+                                (part.startsWith('\\(') && part.endsWith('\\)')) ||
+                                (part.startsWith('\\[') && part.endsWith('\\]'));
         
-        if (isMathDelimited || isRawLatexPattern) {
+        const isNakedLatex = part.startsWith('\\');
+        
+        if (isMathDelimited || isNakedLatex) {
           try {
             // Remove delimiters if they exist
-            const math = part.replace(/^\$\$?|\$\$?$/g, '');
+            let math = part;
+            if (isMathDelimited) {
+              math = part.startsWith('$$') ? part.replace(/^\$\$|\$\$$/g, '') : 
+                     part.startsWith('$') ? part.replace(/^\$|\$$/g, '') :
+                     part.startsWith('\\(') ? part.replace(/^\\\(|\\\)$/g, '') :
+                     part.replace(/^\\\[|\\\]$/g, '');
+            }
+            
             const html = katex.renderToString(math, {
               throwOnError: false,
-              displayMode: part.startsWith('$$') || displayMode,
+              displayMode: part.startsWith('$$') || part.startsWith('\\[') || displayMode,
               trust: true
             });
             return <span key={index} dangerouslySetInnerHTML={{ __html: html }} />;

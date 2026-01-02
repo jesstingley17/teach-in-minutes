@@ -15,7 +15,6 @@ export interface GenerationOptions {
   curriculumStandard?: CurriculumStandard;
 }
 
-// Generate a set of educational doodles for a given topic and grade level
 export async function generateDoodles(topic: string, gradeLevel: string): Promise<string[]> {
   const ai = getAI();
   const prompt = `Create a set of simple, minimalist black and white line-art sketches that a teacher might draw on a worksheet for ${gradeLevel} students about the topic: ${topic}. These should be educational icons or symbols.`;
@@ -77,6 +76,12 @@ export async function generateWorksheet(options: GenerationOptions): Promise<Wor
     - LANGUAGE: ${language}
     ${rawText ? `- ANCHOR CONTENT: ${rawText}` : ''}
     
+    MATH FORMATTING (CRITICAL):
+    - EVERY fraction, equation, mathematical variable, or symbol MUST be wrapped in '$' delimiters.
+    - Example: Instead of writing 2/8 or \\frac{2}{8}, you MUST write $\\frac{2}{8}$.
+    - Example: Instead of x = 5, write $x = 5$.
+    - NEVER output raw LaTeX commands without the '$' wrappers.
+    
     INSTRUMENT BLUEPRINTS:
     ${containerIntents.map((intent, i) => `
     [INSTRUMENT ${i+1}]
@@ -90,8 +95,8 @@ export async function generateWorksheet(options: GenerationOptions): Promise<Wor
 
     REQUIREMENTS:
     1. If LAYOUT is LAID_TEACH, generate 'teachingContent' (3 paragraphs of rigorous instructional summary) and 'keyTakeaways' (5 punchy points).
-    2. MATH: Always use $...$ for variables and equations.
-    3. PRINT OPTIMIZATION: Ensure text is clear and content is dense but readable.
+    2. Ensure pedagogical accuracy and age-appropriate vocabulary.
+    3. PRINT OPTIMIZATION: Density is preferred over whitespace.
     
     OUTPUT: A JSON ARRAY of ${containerIntents.length} Worksheet objects.
   `;
