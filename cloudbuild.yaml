@@ -1,0 +1,38 @@
+substitutions:
+  _AR_HOSTNAME: "us-central1-docker.pkg.dev"
+  _AR_PROJECT_ID: "zr-gemini"
+  _AR_REPOSITORY: "cloud-run-source-deploy"
+  _DEPLOY_REGION: "us-central1"
+  _PLATFORM: "managed"
+  _SERVICE_NAME: "teach-in-minutes"
+
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args:
+    - 'build'
+    - '-t'
+    - '$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME:$_SHORT_SHA'
+    - '.'
+
+- name: 'gcr.io/cloud-builders/docker'
+  args:
+    - 'push'
+    - '$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME:$_SHORT_SHA'
+
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  entrypoint: 'bash'
+  args:
+    - '-c'
+    - |
+      gcloud run deploy "$_SERVICE_NAME" \
+        --image="$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME:$_SHORT_SHA" \
+        --region="$_DEPLOY_REGION" \
+        --platform="$_PLATFORM" \
+        --memory=512Mi \
+        --cpu=1 \
+        --concurrency=10 \
+        --allow-unauthenticated \
+        --update-env-vars SUPABASE_URL=https://wbnjjdmjcmbcacgfpmgr.supabase.co
+
+images:
+  - '$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME:$_SHORT_SHA'
