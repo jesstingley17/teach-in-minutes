@@ -12,7 +12,7 @@ import {
   Settings, Layers, ChevronRight, Layout, Palette, Trash2, ArrowLeft,
   Settings2, Sliders, ListChecks, Hash, Gauge, Microscope, Copy, Check, User, PlayCircle,
   Image as ImageIcon, Globe, Search, Brain, ListOrdered, FileText, Key, Info, Activity, Wifi, WifiOff,
-  Terminal
+  Terminal, ShieldAlert, RefreshCw, Server
 } from 'lucide-react';
 
 const DEFAULT_BRANDING: BrandingConfig = {
@@ -28,6 +28,7 @@ const App: React.FC = () => {
   const [authLoading, setAuthLoading] = useState(true);
   const [apiKeyMissing, setApiKeyMissing] = useState(false);
   const [isVerifyingKey, setIsVerifyingKey] = useState(false);
+  const [showConnectionManager, setShowConnectionManager] = useState(false);
 
   const [mode, setMode] = useState<AppMode>(AppMode.ONBOARDING);
   const [worksheet, setWorksheet] = useState<Worksheet | null>(null);
@@ -67,28 +68,31 @@ const App: React.FC = () => {
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   /**
-   * Refined AI Connectivity Check
+   * REFINED AI CONNECTIVITY CHECK
+   * Detects both injected process.env keys and platform helpers.
    */
   const checkAIConnectivity = async () => {
     setIsVerifyingKey(true);
     
-    // Check for standard Gemini API key format (usually starts with AIza)
-    const rawKey = process.env.API_KEY;
+    // 1. Check for standard environment key
+    const rawKey = (window as any).process?.env?.API_KEY || process.env.API_KEY;
     const hasEnvKey = !!rawKey && rawKey !== 'undefined' && rawKey !== 'null' && rawKey.trim().length > 0;
     
-    let hasSelectedKey = false;
+    // 2. Check for AI Studio platform key session
+    let hasPlatformKey = false;
     try {
       // @ts-ignore
       if (window.aistudio?.hasSelectedApiKey) {
         // @ts-ignore
-        hasSelectedKey = await window.aistudio.hasSelectedApiKey();
+        hasPlatformKey = await window.aistudio.hasSelectedApiKey();
       }
     } catch (e) {
-      console.warn("AI Studio key check skipped:", e);
+      console.warn("AI Studio key session check failed/skipped:", e);
     }
 
-    setApiKeyMissing(!hasEnvKey && !hasSelectedKey);
+    setApiKeyMissing(!hasEnvKey && !hasPlatformKey);
     setIsVerifyingKey(false);
+    return { hasEnvKey, hasPlatformKey };
   };
 
   useEffect(() => {
@@ -108,31 +112,35 @@ const App: React.FC = () => {
     
     setAuthLoading(false);
 
-    // Heartbeat for status updates
-    const interval = setInterval(checkAIConnectivity, 15000);
+    // Dynamic re-sync heartbeat
+    const interval = setInterval(checkAIConnectivity, 20000);
     return () => clearInterval(interval);
   }, []);
 
-  const handleConnectApiKey = async () => {
-    // @ts-ignore
-    if (window.aistudio?.openSelectKey) {
-      try {
-        // @ts-ignore
-        await window.aistudio.openSelectKey();
-        setApiKeyMissing(false);
-        checkAIConnectivity();
-      } catch (e) {
-        console.error("Key Selector Error", e);
-      }
+  const handleManualSync = async () => {
+    const status = await checkAIConnectivity();
+    if (!status.hasEnvKey && !status.hasPlatformKey) {
+       // @ts-ignore
+       if (window.aistudio?.openSelectKey) {
+         try {
+           // @ts-ignore
+           await window.aistudio.openSelectKey();
+           setApiKeyMissing(false);
+           await checkAIConnectivity();
+         } catch (e) {
+           console.error("Manual selector failed:", e);
+         }
+       } else {
+         alert("No API Key detected in environment. Please ensure 'API_KEY' is set in your project environment settings.");
+       }
     } else {
-      // If a key is missing but the selector is unavailable, try to re-verify env
-      const isActuallyAvailable = !!process.env.API_KEY && process.env.API_KEY !== 'undefined';
-      if (isActuallyAvailable) {
-        setApiKeyMissing(false);
-      } else {
-        alert("Gemini API Key missing. Please ensure it's configured in your environment variables (API_KEY) or provided by the platform.");
-      }
+      setApiKeyMissing(false);
+      setShowConnectionManager(false);
     }
+  };
+
+  const handleConnectApiKey = async () => {
+    setShowConnectionManager(true);
   };
 
   useEffect(() => { 
@@ -192,9 +200,9 @@ const App: React.FC = () => {
       if (!formData.topic) setFormData({ ...formData, topic: lessons[0].title });
     } catch (e: any) {
       console.error("Mapping Error:", e);
-      if (e.message?.includes("Requested entity was not found") || e.message?.includes("API_KEY")) {
+      if (e.message?.includes("Requested entity was not found") || e.message?.includes("API_KEY") || e.message?.includes("401")) {
         setApiKeyMissing(true);
-        handleConnectApiKey();
+        setShowConnectionManager(true);
       } else {
         alert(`Analysis Error: ${e.message}`);
       }
@@ -234,11 +242,11 @@ const App: React.FC = () => {
       setMode(AppMode.BULK_REVIEW);
     } catch (e: any) { 
       console.error("Generation Error:", e);
-      if (e.message?.includes("Requested entity was not found") || e.message?.includes("API_KEY")) {
+      if (e.message?.includes("Requested entity was not found") || e.message?.includes("API_KEY") || e.message?.includes("401")) {
         setApiKeyMissing(true);
-        handleConnectApiKey();
+        setShowConnectionManager(true);
       } else {
-        alert("Suite synthesis failed. Check your API connectivity and prompt logic.");
+        alert("Suite synthesis failed. Ensure your AI connection is verified.");
       }
     } finally { setLoading(false); }
   };
@@ -295,6 +303,57 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex bg-white font-sans text-slate-900">
+      {/* Connection Manager Modal */}
+      {showConnectionManager && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-xl animate-in fade-in duration-300 no-print">
+           <div className="bg-white w-full max-w-lg rounded-[3rem] shadow-2xl p-10 relative border-t-8 border-slate-900 animate-in zoom-in duration-300">
+              <button onClick={() => setShowConnectionManager(false)} className="absolute top-8 right-8 text-slate-300 hover:text-slate-900"><XCircle className="w-8 h-8" /></button>
+              <header className="mb-10 text-center">
+                 <div className={`w-16 h-16 rounded-3xl mx-auto mb-6 flex items-center justify-center ${apiKeyMissing ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500'}`}>
+                    {apiKeyMissing ? <WifiOff className="w-8 h-8" /> : <Wifi className="w-8 h-8" />}
+                 </div>
+                 <h2 className="text-4xl font-black uppercase tracking-tighter italic">AI Bridge Studio</h2>
+                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-2">Manage Gemini 3 Pro Reasoning Core</p>
+              </header>
+              <div className="space-y-6">
+                 <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 space-y-2">
+                    <p className="text-[9px] font-black uppercase text-slate-400 flex items-center gap-2"><Server className="w-3 h-3" /> Environment Registry</p>
+                    <div className="flex items-center justify-between">
+                       <span className="text-xs font-bold text-slate-700 uppercase">process.env.API_KEY</span>
+                       <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase ${apiKeyMissing ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                          {apiKeyMissing ? 'Missing' : 'Handshake Active'}
+                       </span>
+                    </div>
+                 </div>
+                 
+                 <div className="grid grid-cols-1 gap-4">
+                    <button onClick={handleManualSync} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-4 hover:scale-[1.02] active:scale-95 transition-all shadow-xl">
+                       <RefreshCw className={`w-4 h-4 ${isVerifyingKey ? 'animate-spin' : ''}`} /> Force Manual Handshake
+                    </button>
+                    {/* Only show "Select Platform Key" if we are in an environment that supports it */}
+                    {/* @ts-ignore */}
+                    {window.aistudio && (
+                       <button onClick={async () => { 
+                         // @ts-ignore
+                         await window.aistudio.openSelectKey(); 
+                         await checkAIConnectivity(); 
+                       }} className="w-full py-5 border-2 border-slate-900 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center justify-center gap-4">
+                          <Key className="w-4 h-4" /> Select Platform Secret
+                       </button>
+                    )}
+                 </div>
+                 
+                 <div className="pt-6 border-t border-slate-100 text-center">
+                    <p className="text-[9px] font-bold text-slate-400 leading-relaxed uppercase">
+                       The API Key must be configured in your environment variables. 
+                       If it's already there, use 'Force Manual Handshake' to re-sync.
+                    </p>
+                 </div>
+              </div>
+           </div>
+        </div>
+      )}
+
       <aside className="w-72 border-r border-slate-100 hidden lg:flex flex-col fixed h-full z-20 no-print bg-white">
         <div className="p-8 border-b border-slate-50">
            <div className="flex items-center gap-3 mb-10 cursor-pointer" onClick={() => setMode(AppMode.ONBOARDING)}>
@@ -345,10 +404,10 @@ const App: React.FC = () => {
               </div>
               <div className="flex-1">
                  <p className={`text-[8px] font-black uppercase tracking-widest ${apiKeyMissing ? 'text-red-600' : 'text-green-600'}`}>
-                   {isVerifyingKey ? 'Checking...' : apiKeyMissing ? 'AI Engine: Offline' : 'AI Engine: Online'}
+                   {isVerifyingKey ? 'Synchronizing...' : apiKeyMissing ? 'AI Engine: Offline' : 'AI Engine: Online'}
                  </p>
                  <p className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">
-                   {apiKeyMissing ? 'Tap to Connect' : 'Gemini Core reasoning active'}
+                   {apiKeyMissing ? 'Action Required' : 'Manual Bridge Active'}
                  </p>
               </div>
               {!apiKeyMissing && <Check className="w-3 h-3 text-green-400" />}
@@ -370,15 +429,38 @@ const App: React.FC = () => {
       </aside>
 
       <main className="flex-1 lg:ml-72 min-h-screen relative bg-white">
+        {/* Connection Failure Overlay for Generator */}
+        {apiKeyMissing && mode === AppMode.GENERATOR && (
+           <div className="absolute inset-0 bg-white/60 backdrop-blur-md z-40 flex flex-col items-center justify-center p-12 text-center">
+              <div className="w-24 h-24 bg-red-100 text-red-600 rounded-[2rem] flex items-center justify-center mb-8 shadow-xl animate-bounce">
+                 <ShieldAlert className="w-12 h-12" />
+              </div>
+              <h2 className="text-5xl font-black uppercase tracking-tighter italic mb-4">AI Link Compromised</h2>
+              <p className="max-w-md text-sm font-bold text-slate-500 uppercase leading-relaxed mb-10">
+                 The reasoning core (Gemini 3 Pro) requires an active API_KEY handshake. 
+                 Please configure your environment variables to resume materialization.
+              </p>
+              <button 
+                onClick={handleConnectApiKey}
+                className="px-12 py-5 bg-slate-900 text-white rounded-[2rem] font-black text-xs uppercase tracking-widest shadow-2xl hover:bg-slate-800 active:scale-95 transition-all flex items-center gap-4"
+              >
+                 <Key className="w-5 h-5" /> Activate Manual Connection
+              </button>
+           </div>
+        )}
+
         {/* Mobile Header Bar */}
         <div className="lg:hidden p-4 border-b flex items-center justify-between no-print sticky top-0 bg-white z-50">
            <div className="flex items-center gap-2">
               <GraduationCap className="w-5 h-5" />
               <span className="font-black uppercase text-xs">Blueprint Pro</span>
            </div>
-           <div className={`px-3 py-1 rounded-full text-[8px] font-black uppercase ${apiKeyMissing ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+           <button 
+             onClick={handleConnectApiKey}
+             className={`px-3 py-1 rounded-full text-[8px] font-black uppercase ${apiKeyMissing ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}
+           >
               {apiKeyMissing ? 'AI Missing' : 'AI Connected'}
-           </div>
+           </button>
         </div>
 
         <div className="p-8 lg:p-12 pb-32">

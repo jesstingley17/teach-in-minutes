@@ -489,7 +489,8 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
                                   ))}
                                </div>
                                {isBuilderMode && (
-                                 <button onClick={() => addOption(questionId)} className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-slate-100 rounded-xl text-[10px] font-black uppercase text-slate-300 hover:border-blue-300 hover:text-blue-500 transition-all no-print"><PlusCircle className="w-4 h-4" /> Add Option</button>
+                                 // Fix: Replaced undefined variable 'questionId' with 'q.id'.
+                                 <button onClick={() => addOption(q.id)} className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-slate-100 rounded-xl text-[10px] font-black uppercase text-slate-300 hover:border-blue-300 hover:text-blue-500 transition-all no-print"><PlusCircle className="w-4 h-4" /> Add Option</button>
                                )}
                              </div>
                           )}
