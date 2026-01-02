@@ -12,7 +12,7 @@ import {
   Settings, Layers, ChevronRight, Layout, Palette, Trash2, ArrowLeft,
   Settings2, Sliders, ListChecks, Hash, Gauge, Microscope, Copy, Check, User, PlayCircle,
   Image as ImageIcon, Globe, Search, Brain, ListOrdered, FileText, Key, Info, Activity, Wifi, WifiOff,
-  Terminal, ShieldAlert, RefreshCw, Server
+  Terminal, ShieldAlert, RefreshCw, Server, X, Type as TypeIcon, Braces, AlignLeft, Scissors
 } from 'lucide-react';
 
 const DEFAULT_BRANDING: BrandingConfig = {
@@ -67,24 +67,15 @@ const App: React.FC = () => {
   const guidelineInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
-  /**
-   * REFINED AI CONNECTIVITY CHECK
-   * Detects both injected process.env keys and platform helpers.
-   */
   const checkAIConnectivity = async () => {
     setIsVerifyingKey(true);
-    
-    // 1. Check for standard environment key
     const rawKey = (window as any).process?.env?.API_KEY || process.env.API_KEY;
     const hasEnvKey = !!rawKey && rawKey !== 'undefined' && rawKey !== 'null' && rawKey.trim().length > 0;
     
-    // 2. Check for AI Studio platform key session
     let hasPlatformKey = false;
     try {
-      // @ts-ignore
-      if (window.aistudio?.hasSelectedApiKey) {
-        // @ts-ignore
-        hasPlatformKey = await window.aistudio.hasSelectedApiKey();
+      if ((window as any).aistudio?.hasSelectedApiKey) {
+        hasPlatformKey = await (window as any).aistudio.hasSelectedApiKey();
       }
     } catch (e) {
       console.warn("AI Studio key session check failed/skipped:", e);
@@ -97,7 +88,6 @@ const App: React.FC = () => {
 
   useEffect(() => {
     checkAIConnectivity();
-
     const savedBranding = localStorage.getItem('institutional_branding');
     if (savedBranding) setBranding(JSON.parse(savedBranding));
 
@@ -109,10 +99,7 @@ const App: React.FC = () => {
     } else {
       setUser(JSON.parse(localUser));
     }
-    
     setAuthLoading(false);
-
-    // Dynamic re-sync heartbeat
     const interval = setInterval(checkAIConnectivity, 20000);
     return () => clearInterval(interval);
   }, []);
@@ -120,11 +107,9 @@ const App: React.FC = () => {
   const handleManualSync = async () => {
     const status = await checkAIConnectivity();
     if (!status.hasEnvKey && !status.hasPlatformKey) {
-       // @ts-ignore
-       if (window.aistudio?.openSelectKey) {
+       if ((window as any).aistudio?.openSelectKey) {
          try {
-           // @ts-ignore
-           await window.aistudio.openSelectKey();
+           await (window as any).aistudio.openSelectKey();
            setApiKeyMissing(false);
            await checkAIConnectivity();
          } catch (e) {
@@ -281,15 +266,22 @@ const App: React.FC = () => {
   };
 
   const updateIntent = (idx: number, updates: any) => {
-    const n = [...suiteIntents];
-    n[idx] = { ...n[idx], ...updates };
-    setSuiteIntents(n);
+    setSuiteIntents(prev => {
+      const n = [...prev];
+      n[idx] = { ...n[idx], ...updates };
+      return n;
+    });
   };
 
   const updateQuestionCount = (containerIdx: number, type: QuestionType, count: number) => {
-    const n = [...suiteIntents];
-    n[containerIdx].questionCounts = { ...n[containerIdx].questionCounts, [type]: count };
-    setSuiteIntents(n);
+    setSuiteIntents(prev => {
+      const n = [...prev];
+      n[containerIdx] = {
+        ...n[containerIdx],
+        questionCounts: { ...n[containerIdx].questionCounts, [type]: count }
+      };
+      return n;
+    });
   };
 
   if (authLoading) return (
@@ -301,8 +293,121 @@ const App: React.FC = () => {
     </div>
   );
 
+  const editingIntent = editingContainerIdx !== null ? suiteIntents[editingContainerIdx] : null;
+
   return (
     <div className="min-h-screen flex bg-white font-sans text-slate-900">
+      {/* Node Configuration Modal (The missing editor) */}
+      {editingIntent && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-xl animate-in fade-in duration-300 no-print">
+           <div className="bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl p-10 relative border-t-[12px] border-slate-900 animate-in zoom-in duration-300 max-h-[90vh] overflow-y-auto custom-scrollbar">
+              <button onClick={() => setEditingContainerIdx(null)} className="absolute top-8 right-8 text-slate-300 hover:text-slate-900"><XCircle className="w-10 h-10" /></button>
+              
+              <header className="mb-10">
+                 <div className="flex items-center gap-4 mb-2">
+                    <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center font-black text-xl shadow-inner">{editingContainerIdx! + 1}</div>
+                    <div>
+                       <h2 className="text-4xl font-black uppercase tracking-tighter italic">Node Architect</h2>
+                       <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Configuring Unit Logic & Structure</p>
+                    </div>
+                 </div>
+              </header>
+
+              <div className="space-y-10">
+                 <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-3">
+                       <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2"><Layout className="w-3.5 h-3.5" /> Unit Type</label>
+                       <select 
+                         className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-sm focus:border-slate-900 outline-none transition-all cursor-pointer"
+                         value={editingIntent.type}
+                         onChange={e => updateIntent(editingContainerIdx!, { type: e.target.value })}
+                       >
+                          {Object.values(DocumentType).map(t => <option key={t} value={t}>{t}</option>)}
+                       </select>
+                    </div>
+                    <div className="space-y-3">
+                       <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2"><Gauge className="w-3.5 h-3.5" /> Cognitive Depth</label>
+                       <select 
+                         className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-sm focus:border-slate-900 outline-none transition-all cursor-pointer"
+                         value={editingIntent.depth}
+                         onChange={e => updateIntent(editingContainerIdx!, { depth: e.target.value })}
+                       >
+                          {Object.values(CognitiveDepth).map(d => <option key={d} value={d}>{d}</option>)}
+                       </select>
+                    </div>
+                 </div>
+
+                 <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-3">
+                       <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2"><User className="w-3.5 h-3.5" /> Target Profile</label>
+                       <select 
+                         className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-sm focus:border-slate-900 outline-none transition-all cursor-pointer"
+                         value={editingIntent.profile}
+                         onChange={e => updateIntent(editingContainerIdx!, { profile: e.target.value })}
+                       >
+                          {Object.values(LearnerProfile).map(p => <option key={p} value={p}>{p}</option>)}
+                       </select>
+                    </div>
+                    <div className="space-y-3">
+                       <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2"><Palette className="w-3.5 h-3.5" /> Layout Mode</label>
+                       <select 
+                         className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-sm focus:border-slate-900 outline-none transition-all cursor-pointer"
+                         value={editingIntent.layout}
+                         onChange={e => updateIntent(editingContainerIdx!, { layout: e.target.value })}
+                       >
+                          {Object.values(LayoutStyle).map(l => <option key={l} value={l}>{l}</option>)}
+                       </select>
+                    </div>
+                 </div>
+
+                 <div className="space-y-4">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2"><ListChecks className="w-3.5 h-3.5" /> Logical Distribution (Question Counts)</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                       {[
+                         { type: QuestionType.MCQ, icon: <ListOrdered className="w-4 h-4" /> },
+                         { type: QuestionType.SHORT_ANSWER, icon: <TypeIcon className="w-4 h-4" /> },
+                         { type: QuestionType.ESSAY, icon: <FileText className="w-4 h-4" /> },
+                         { type: QuestionType.VOCABULARY, icon: <BookOpen className="w-4 h-4" /> },
+                         { type: QuestionType.SENTENCE_DRILL, icon: <AlignLeft className="w-4 h-4" /> },
+                         { type: QuestionType.SYMBOL_DRILL, icon: <Braces className="w-4 h-4" /> }
+                       ].map(q => (
+                         <div key={q.type} className="p-4 bg-slate-50 border border-slate-100 rounded-3xl flex flex-col gap-2">
+                            <span className="text-[8px] font-black uppercase text-slate-400 flex items-center gap-2">{q.icon} {q.type.replace('_', ' ')}</span>
+                            <div className="flex items-center justify-between">
+                               <button 
+                                 onClick={() => updateQuestionCount(editingContainerIdx!, q.type, Math.max(0, (editingIntent.questionCounts[q.type] || 0) - 1))}
+                                 className="w-8 h-8 rounded-full bg-white shadow-sm border border-slate-100 flex items-center justify-center font-black hover:bg-slate-100 active:scale-90 transition-all"
+                               >-</button>
+                               <span className="font-black text-lg">{editingIntent.questionCounts[q.type] || 0}</span>
+                               <button 
+                                 onClick={() => updateQuestionCount(editingContainerIdx!, q.type, (editingIntent.questionCounts[q.type] || 0) + 1)}
+                                 className="w-8 h-8 rounded-full bg-white shadow-sm border border-slate-100 flex items-center justify-center font-black hover:bg-slate-100 active:scale-90 transition-all"
+                               >+</button>
+                            </div>
+                         </div>
+                       ))}
+                    </div>
+                 </div>
+
+                 <div className="space-y-3">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2"><Sparkles className="w-3.5 h-3.5" /> Pedagogical Instructions</label>
+                    <textarea 
+                      placeholder="e.g. Focus on organic synthesis pathways and provide real-world environmental impacts..."
+                      className="w-full p-6 bg-slate-50 border-2 border-slate-100 rounded-3xl font-bold text-xs focus:border-slate-900 outline-none transition-all h-32 resize-none"
+                      value={editingIntent.specificInstructions || ''}
+                      onChange={e => updateIntent(editingContainerIdx!, { specificInstructions: e.target.value })}
+                    />
+                 </div>
+
+                 <button 
+                   onClick={() => setEditingContainerIdx(null)}
+                   className="w-full py-6 bg-slate-900 text-white rounded-[2rem] font-black text-xl uppercase tracking-widest shadow-2xl hover:bg-slate-800 active:scale-95 transition-all"
+                 >Commit Configuration</button>
+              </div>
+           </div>
+        </div>
+      )}
+
       {/* Connection Manager Modal */}
       {showConnectionManager && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-xl animate-in fade-in duration-300 no-print">
@@ -330,12 +435,9 @@ const App: React.FC = () => {
                     <button onClick={handleManualSync} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-4 hover:scale-[1.02] active:scale-95 transition-all shadow-xl">
                        <RefreshCw className={`w-4 h-4 ${isVerifyingKey ? 'animate-spin' : ''}`} /> Force Manual Handshake
                     </button>
-                    {/* Only show "Select Platform Key" if we are in an environment that supports it */}
-                    {/* @ts-ignore */}
-                    {window.aistudio && (
+                    {(window as any).aistudio && (
                        <button onClick={async () => { 
-                         // @ts-ignore
-                         await window.aistudio.openSelectKey(); 
+                         await (window as any).aistudio.openSelectKey(); 
                          await checkAIConnectivity(); 
                        }} className="w-full py-5 border-2 border-slate-900 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center justify-center gap-4">
                           <Key className="w-4 h-4" /> Select Platform Secret
@@ -386,7 +488,6 @@ const App: React.FC = () => {
            </div>
         </div>
         
-        {/* Connection Status Bar - Always Visible */}
         <div className="px-6 py-4 border-t border-slate-50">
            <button 
              onClick={handleConnectApiKey}
@@ -429,7 +530,6 @@ const App: React.FC = () => {
       </aside>
 
       <main className="flex-1 lg:ml-72 min-h-screen relative bg-white">
-        {/* Connection Failure Overlay for Generator */}
         {apiKeyMissing && mode === AppMode.GENERATOR && (
            <div className="absolute inset-0 bg-white/60 backdrop-blur-md z-40 flex flex-col items-center justify-center p-12 text-center">
               <div className="w-24 h-24 bg-red-100 text-red-600 rounded-[2rem] flex items-center justify-center mb-8 shadow-xl animate-bounce">
@@ -449,7 +549,6 @@ const App: React.FC = () => {
            </div>
         )}
 
-        {/* Mobile Header Bar */}
         <div className="lg:hidden p-4 border-b flex items-center justify-between no-print sticky top-0 bg-white z-50">
            <div className="flex items-center gap-2">
               <GraduationCap className="w-5 h-5" />
@@ -618,7 +717,6 @@ const App: React.FC = () => {
                               </p>
                               <div className="flex gap-3">
                                  {Object.entries(intent.questionCounts).map(([type, count]) => (
-                                   // Fix: Cast 'count' to number to prevent 'unknown' comparison error.
                                    (count as number) > 0 && (
                                      <div key={type} className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-2xl border border-slate-100">
                                         <Check className="w-3 h-3 text-blue-500" />
@@ -724,7 +822,6 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      {/* Floating On-Page Status Badge for Non-Sidebar Views (Mobile/Minimal) */}
       <div className="fixed top-4 right-4 z-[100] lg:hidden no-print">
          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border bg-white shadow-md ${apiKeyMissing ? 'border-red-100' : 'border-green-100'}`}>
             <div className={`w-2 h-2 rounded-full ${apiKeyMissing ? 'bg-red-500' : 'bg-green-500 animate-pulse'}`}></div>
