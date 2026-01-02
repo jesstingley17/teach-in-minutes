@@ -8,7 +8,7 @@ import { DraggableLineRow, SymbolDrillRow, HandDrawnDivider } from './Handwritin
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { 
-  Trash2, Edit3, Check, Landmark, Printer, Loader2, Link as LinkIcon, Share2, Volume2, Copy, GripVertical, Image as ImageIcon, PlusCircle, Sparkles, BookOpen, FileText, MousePointer2, Book, Scissors
+  Trash2, Edit3, Check, Landmark, Printer, Loader2, Link as LinkIcon, Share2, Volume2, Copy, GripVertical, Image as ImageIcon, PlusCircle, Sparkles, BookOpen, FileText, MousePointer2, Book, Scissors, HelpCircle
 } from 'lucide-react';
 
 interface WorksheetViewProps {
@@ -30,6 +30,7 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
   const [isBuilderMode, setIsBuilderMode] = useState(false);
   const [currentTheme, setCurrentTheme] = useState<ThemeType>(initialTheme);
   const [isExporting, setIsExporting] = useState(false);
+  const [draggedOptionInfo, setDraggedOptionInfo] = useState<{ qId: string, index: number } | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { setWorksheet(initialWorksheet); }, [initialWorksheet]);
@@ -136,9 +137,29 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
 
     if (type === QuestionType.MCQ) newQ.options = ["Option 1", "Option 2", "Option 3", "Option 4"];
     if (type === QuestionType.TF) newQ.options = ["True", "False"];
-    if (type === QuestionType.MATCHING) newQ.options = ["A: 1", "B: 2", "C: 3"];
+    if (type === QuestionType.MATCHING) newQ.options = ["Term A: Definition 1", "Term B: Definition 2", "Term C: Definition 3"];
 
     handleUpdate({...worksheet, questions: [...worksheet.questions, newQ]});
+  };
+
+  // MCQ Drag and Drop Handlers
+  const onOptionDragStart = (qId: string, index: number) => {
+    setDraggedOptionInfo({ qId, index });
+  };
+
+  const onOptionDrop = (qId: string, dropIndex: number) => {
+    if (!draggedOptionInfo || draggedOptionInfo.qId !== qId) return;
+    
+    const q = worksheet.questions.find(item => item.id === qId);
+    if (!q || !q.options) return;
+
+    const newOptions = [...q.options];
+    const itemToMove = newOptions[draggedOptionInfo.index];
+    newOptions.splice(draggedOptionInfo.index, 1);
+    newOptions.splice(dropIndex, 0, itemToMove);
+    
+    updateQuestion(qId, { options: newOptions });
+    setDraggedOptionInfo(null);
   };
 
   return (
@@ -234,7 +255,7 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
             <button onClick={() => handleSpeech('intro', worksheet.topic || "")} className="no-print p-2 rounded-lg bg-white border border-slate-200 text-slate-900 hover:text-blue-600 shadow-sm ml-4 transition-all"><Volume2 className="w-4 h-4" /></button>
           </div>
 
-          <div className="space-y-12">
+          <div className="space-y-16">
             {worksheet.questions.map((q, idx) => (
               <div key={q.id} className={`relative group/q ${q.type === QuestionType.PAGE_BREAK ? 'py-8 border-y border-dashed border-slate-200 page-break-after' : ''}`}>
                 
@@ -261,7 +282,17 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
                       </div>
                       <div className="ml-4 text-right">
                         <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">Marks</span>
-                        <EditableField label="Points" value={String(q.points || 0)} onSave={(v: any) => updateQuestion(q.id, {points: parseInt(v) || 0})} className="font-black text-slate-900 w-10 text-center text-lg bg-slate-50 rounded" />
+                        {isBuilderMode ? (
+                          <input 
+                            type="number"
+                            className="font-black text-slate-900 w-12 text-center text-lg bg-blue-50 border-2 border-blue-200 rounded outline-none focus:border-blue-500 transition-all no-print"
+                            value={q.points || 0}
+                            onChange={(e) => updateQuestion(q.id, { points: parseInt(e.target.value) || 0 })}
+                          />
+                        ) : (
+                          <span className="font-black text-slate-900 w-10 text-center text-lg block">{q.points || 0}</span>
+                        )}
+                        {isBuilderMode && <div className="text-[7px] font-bold text-blue-500 uppercase mt-1 no-print">Direct Entry</div>}
                       </div>
                     </div>
 
@@ -269,7 +300,15 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
                       {(q.type === QuestionType.MCQ || q.type === QuestionType.TF) && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           {q.options?.map((opt, i) => (
-                            <div key={i} className={`flex items-center gap-3 p-4 border-2 border-slate-100 ${themeClasses.rounded} bg-white shadow-sm hover:border-blue-100 transition-all`}>
+                            <div 
+                              key={i} 
+                              draggable={isBuilderMode && q.type === QuestionType.MCQ}
+                              onDragStart={() => isBuilderMode && q.type === QuestionType.MCQ && onOptionDragStart(q.id, i)}
+                              onDragOver={(e) => isBuilderMode && q.type === QuestionType.MCQ && e.preventDefault()}
+                              onDrop={() => isBuilderMode && q.type === QuestionType.MCQ && onOptionDrop(q.id, i)}
+                              className={`flex items-center gap-3 p-4 border-2 border-slate-100 ${themeClasses.rounded} bg-white shadow-sm hover:border-blue-100 transition-all ${isBuilderMode && q.type === QuestionType.MCQ ? 'cursor-move hover:bg-slate-50 active:scale-[0.98]' : ''} ${draggedOptionInfo?.qId === q.id && draggedOptionInfo?.index === i ? 'opacity-30' : ''}`}
+                            >
+                              {isBuilderMode && q.type === QuestionType.MCQ && <GripVertical className="w-4 h-4 text-slate-300 flex-shrink-0" />}
                               <div className={`w-5 h-5 border-2 border-slate-900 rounded-full flex-shrink-0`} />
                               <EditableField label={`Opt ${i+1}`} value={opt} onSave={(v: any) => { const n = [...(q.options||[])]; n[i]=v; updateQuestion(q.id, {options: n}); }} className={`text-base font-bold text-slate-800`} isMath={true} />
                             </div>
