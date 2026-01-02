@@ -4,12 +4,10 @@ export enum QuestionType {
   TF = 'TF',
   SHORT_ANSWER = 'SHORT_ANSWER',
   VOCABULARY = 'VOCABULARY',
-  CHARACTER_DRILL = 'CHARACTER_DRILL',
-  SYMBOL_DRILL = 'SYMBOL_DRILL',
-  SENTENCE_DRILL = 'SENTENCE_DRILL',
-  PAGE_BREAK = 'PAGE_BREAK',
   ESSAY = 'ESSAY',
-  MATCHING = 'MATCHING'
+  MATCHING = 'MATCHING',
+  LAB_PROCEDURE = 'LAB_PROCEDURE',
+  CREATIVE_PROMPT = 'CREATIVE_PROMPT'
 }
 
 export enum DocumentType {
@@ -19,19 +17,32 @@ export enum DocumentType {
   QUIZ = 'QUIZ',
   LAB_REPORT = 'LAB_REPORT',
   GUIDED_NOTES = 'GUIDED_NOTES',
-  DEBATE_PREP = 'DEBATE_PREP'
+  DEBATE_PREP = 'DEBATE_PREP',
+  PRACTICE_SET = 'PRACTICE_SET',
+  SYLLABUS_WRAP = 'SYLLABUS_WRAP'
 }
 
 export enum LayoutStyle {
   LAID_TEACH = 'LAID_TEACH',
   CLASSIC = 'CLASSIC',
-  ARCHITECT = 'ARCHITECT'
+  ARCHITECT = 'ARCHITECT',
+  MODULAR = 'MODULAR'
 }
 
 export enum AestheticMode {
   PAPER = 'PAPER',
-  CHALKBOARD = 'CHALKBOARD',
-  BLUEPRINT = 'BLUEPRINT'
+  BLUEPRINT = 'BLUEPRINT',
+  ACADEMIC_JOURNAL = 'ACADEMIC_JOURNAL',
+  PRIMARY_SCHOOL = 'PRIMARY_SCHOOL'
+}
+
+export enum CognitiveDepth {
+  RECALL = 'RECALL',
+  UNDERSTANDING = 'UNDERSTANDING',
+  APPLICATION = 'APPLICATION',
+  ANALYSIS = 'ANALYSIS',
+  EVALUATION = 'EVALUATION',
+  CREATION = 'CREATION'
 }
 
 export enum AudienceCategory {
@@ -40,6 +51,7 @@ export enum AudienceCategory {
   MIDDLE_SCHOOL = 'MIDDLE_SCHOOL',
   HIGH_SCHOOL = 'HIGH_SCHOOL',
   UNIVERSITY = 'UNIVERSITY',
+  POST_GRAD = 'POST_GRAD',
   PROFESSIONAL = 'PROFESSIONAL'
 }
 
@@ -48,7 +60,9 @@ export enum LearnerProfile {
   SPECIAL_ED = 'SPECIAL_ED',
   GIFTED = 'GIFTED',
   ESL_ELL = 'ESL_ELL',
+  ADHD_FRIENDLY = 'ADHD_FRIENDLY',
   DYSLEXIA_FRIENDLY = 'DYSLEXIA_FRIENDLY',
+  VOCATIONAL = 'VOCATIONAL',
   REMEDIAL = 'REMEDIAL',
   ACCELERATED = 'ACCELERATED'
 }
@@ -64,23 +78,23 @@ export enum CurriculumStandard {
   CUSTOM = 'CUSTOM'
 }
 
+export interface ContainerIntent {
+  id: string;
+  type: DocumentType;
+  profile: LearnerProfile;
+  layout: LayoutStyle;
+  depth: CognitiveDepth;
+  questionCounts: Record<string, number>;
+  specificInstructions?: string;
+}
+
 export interface GroundingSource {
   title: string;
   uri: string;
 }
 
-export interface RubricCriterion {
-  criterion: string;
-  weight: number;
-  description: string;
-}
-
 export interface VisualMetadata {
-  coverImageUrl?: string;
   primaryColor?: string;
-  secondaryColor?: string;
-  fontStyle?: string;
-  subjectAesthetic?: string;
   layoutStyle?: LayoutStyle;
   aestheticMode?: AestheticMode;
 }
@@ -96,32 +110,19 @@ export interface BrandingConfig {
 
 export interface Worksheet {
   id?: string;
-  userId?: string;
-  collectionId?: string;
-  courseId?: string;
-  moduleId?: string;
-  moduleTitle?: string;
-  lessonTitle?: string;
   title: string;
   topic: string;
   educationalLevel: string;
   audienceCategory?: AudienceCategory;
   learnerProfile?: LearnerProfile;
-  curriculumStandard?: CurriculumStandard;
-  standardReference?: string;
   documentType: DocumentType;
   institutionName?: string;
   logoUrl?: string;
-  courseCode?: string;
   instructorName?: string;
-  duration?: string;
-  totalPoints?: number;
   teachingContent?: string;
   keyTakeaways?: string[];
   questions: Question[];
-  rubric?: RubricCriterion[];
   visualMetadata?: VisualMetadata;
-  groundingSources?: GroundingSource[];
   savedAt?: number;
 }
 
@@ -129,28 +130,21 @@ export enum AppMode {
   ONBOARDING = 'ONBOARDING',
   GENERATOR = 'GENERATOR',
   WORKSHEET = 'WORKSHEET',
-  QUIZ = 'QUIZ',
   BULK_REVIEW = 'BULK_REVIEW',
   SETTINGS = 'SETTINGS'
 }
 
 export enum ThemeType {
   CLASSIC = 'CLASSIC',
-  CREATIVE = 'CREATIVE',
-  MODERN = 'MODERN',
-  ACADEMIC = 'ACADEMIC',
   GAMMA = 'GAMMA'
 }
 
 export interface Question {
   id: string;
   type: QuestionType;
-  sectionInstruction?: string;
   question: string;
   options?: string[];
   correctAnswer: string;
   explanation: string;
-  isChallenge: boolean;
   points?: number;
-  learningOutcome?: string;
 }

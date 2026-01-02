@@ -24,7 +24,8 @@ export const QuizView: React.FC<QuizViewProps> = ({ worksheet, theme, onExit, is
   const [score, setScore] = useState(0);
   const [history, setHistory] = useState<QuizAttempt[]>([]);
 
-  const isCreative = theme === ThemeType.CREATIVE;
+  // Fix: ThemeType.CREATIVE does not exist on type 'typeof ThemeType'. Using ThemeType.GAMMA instead.
+  const isCreative = theme === ThemeType.GAMMA;
   const progressKey = `quiz_progress_${worksheet.id || 'draft'}`;
   const historyKey = `quiz_history_${worksheet.id || 'draft'}`;
 
