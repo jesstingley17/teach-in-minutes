@@ -66,6 +66,15 @@ export interface VisualMetadata {
   subjectAesthetic?: string;
 }
 
+export interface BrandingConfig {
+  institutionName: string;
+  instructorName: string;
+  logoUrl?: string;
+  primaryColor: string;
+  customDomain?: string;
+  defaultTheme: ThemeType;
+}
+
 export interface Worksheet {
   id?: string;
   userId?: string;
@@ -96,10 +105,12 @@ export interface Worksheet {
 }
 
 export enum AppMode {
+  ONBOARDING = 'ONBOARDING',
   GENERATOR = 'GENERATOR',
   WORKSHEET = 'WORKSHEET',
   QUIZ = 'QUIZ',
-  BULK_REVIEW = 'BULK_REVIEW'
+  BULK_REVIEW = 'BULK_REVIEW',
+  SETTINGS = 'SETTINGS'
 }
 
 export enum ThemeType {
