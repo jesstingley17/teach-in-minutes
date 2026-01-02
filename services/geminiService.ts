@@ -20,6 +20,66 @@ export interface GenerationOptions {
 }
 
 /**
+ * Intelligent analysis of raw source material to pre-fill the generator settings.
+ */
+export async function analyzeSourceMaterial(
+  fileData?: { data: string; mimeType: string },
+  rawText?: string
+): Promise<{ 
+  suggestedTitle: string; 
+  suggestedTopicScope: string;
+  suggestedAudience: AudienceCategory;
+  suggestedLevel: string;
+  suggestedDocType: DocumentType;
+} | null> {
+  const parts: any[] = [];
+  if (fileData) parts.push({ inlineData: { data: fileData.data, mimeType: fileData.mimeType } });
+  
+  const promptText = `
+    ROLE: Academic Intelligence Analyst.
+    TASK: Analyze the provided content and determine the appropriate academic settings for an assessment.
+    
+    ${rawText ? `CONTEXT: ${rawText}` : ''}
+    
+    DETERMINE:
+    1. A formal Title.
+    2. A specific Topic Scope.
+    3. The most likely Audience Category (EARLY_YEARS, PRIMARY, MIDDLE_SCHOOL, HIGH_SCHOOL, UNIVERSITY, PROFESSIONAL).
+    4. The specific Grade/Level (e.g. Grade 10, Undergrad Intro).
+    5. The most appropriate Document Type (HOMEWORK, ASSIGNMENT, EXAM, QUIZ).
+    
+    FORMAT: Return JSON.
+  `;
+  
+  parts.push({ text: promptText });
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: { parts },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            suggestedTitle: { type: Type.STRING },
+            suggestedTopicScope: { type: Type.STRING },
+            suggestedAudience: { type: Type.STRING, enum: Object.values(AudienceCategory) },
+            suggestedLevel: { type: Type.STRING },
+            suggestedDocType: { type: Type.STRING, enum: Object.values(DocumentType) }
+          },
+          required: ["suggestedTitle", "suggestedTopicScope", "suggestedAudience", "suggestedLevel", "suggestedDocType"]
+        }
+      }
+    });
+    return JSON.parse(response.text || '{}');
+  } catch (error) {
+    console.error("Analysis failed", error);
+    return null;
+  }
+}
+
+/**
  * Parses a raw syllabus or course description into a structured Course object.
  */
 export async function parseCourseOutline(
@@ -157,7 +217,6 @@ export async function generateWorksheet(options: GenerationOptions): Promise<Wor
   return worksheet;
 }
 
-// Added generateDoodles to fix missing export error in HandwritingElements.tsx
 /**
  * Generates thematic doodles using Gemini 2.5 Flash Image.
  */

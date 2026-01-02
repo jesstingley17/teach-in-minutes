@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { AppMode, Worksheet, ThemeType, QuestionType, DocumentType, AudienceCategory, LearnerProfile, Course, CourseModule } from './types';
-import { generateWorksheet, parseCourseOutline } from './services/geminiService';
+import { generateWorksheet, parseCourseOutline, analyzeSourceMaterial } from './services/geminiService';
 import { WorksheetView } from './components/WorksheetView';
 import { QuizView } from './components/QuizView';
 import { MarkerHighlight } from './components/HandwritingElements';
@@ -16,7 +16,7 @@ import {
   Baby, School, Building2, UserCircle, 
   Zap, Brain, Languages, Users, Layout, 
   BookOpen, ChevronRight, MoreHorizontal, CheckCircle,
-  File, X as CloseIcon
+  File, X as CloseIcon, Sparkles
 } from 'lucide-react';
 
 const CATEGORIES = [
@@ -112,23 +112,33 @@ const App: React.FC = () => {
     }
   };
 
-  const handleModuleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleModuleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     
     setIsAnalyzing(true);
     const reader = new FileReader();
-    reader.onloadend = () => {
+    reader.onloadend = async () => {
       const result = reader.result as string;
       const base64String = result.split(',')[1];
-      setFormData(prev => ({
-        ...prev,
-        fileData: {
-          data: base64String,
-          mimeType: file.type,
-          name: file.name
-        }
-      }));
+      const newFileData = { data: base64String, mimeType: file.type, name: file.name };
+      
+      setFormData(prev => ({ ...prev, fileData: newFileData }));
+
+      // Automatically analyze the content to pre-fill the form
+      const analysis = await analyzeSourceMaterial(newFileData, formData.rawText);
+      if (analysis) {
+        setFormData(prev => ({
+          ...prev,
+          customTitle: analysis.suggestedTitle,
+          topic: analysis.suggestedTopicScope,
+          audienceCategory: analysis.suggestedAudience,
+          educationalLevel: analysis.suggestedLevel,
+          documentType: analysis.suggestedDocType
+        }));
+        // Auto-advance if analysis is successful and comprehensive
+        setCurrentStep(2);
+      }
       setIsAnalyzing(false);
     };
     reader.readAsDataURL(file);
@@ -140,10 +150,10 @@ const App: React.FC = () => {
       topic: `${module.title}: ${module.topics.join(', ')}`,
       customTitle: module.title,
       rawText: module.description,
-      fileData: null // Reset file when picking a new module
+      fileData: null 
     });
     setMode(AppMode.GENERATOR);
-    setCurrentStep(2); // Go to material step to allow uploads
+    setCurrentStep(2); // Go straight to Refine Settings
   };
 
   const handleGenerate = async () => {
@@ -185,7 +195,7 @@ const App: React.FC = () => {
         
         <div className="flex-1 overflow-y-auto p-6 space-y-8">
            <nav className="space-y-2">
-              <button onClick={() => { setMode(AppMode.GENERATOR); setCurrentStep(1); setFormData(p => ({ ...p, fileData: null })); }} className={`w-full flex items-center gap-3 p-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${mode === AppMode.GENERATOR ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
+              <button onClick={() => { setMode(AppMode.GENERATOR); setCurrentStep(1); setFormData(p => ({ ...p, fileData: null, rawText: '' })); }} className={`w-full flex items-center gap-3 p-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${mode === AppMode.GENERATOR ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
                  <Plus className="w-4 h-4" /> New Session
               </button>
               {activeCourse && (
@@ -278,9 +288,9 @@ const App: React.FC = () => {
                  <div className="max-w-4xl mx-auto py-12">
                    <header className="text-center mb-16">
                       <h2 className="text-6xl font-black tracking-tighter text-slate-900 mb-4 uppercase">
-                        {currentStep === 3 ? 'Refine' : 'Generate'} <MarkerHighlight>Excellence</MarkerHighlight>
+                        Assemble <MarkerHighlight>Assessment</MarkerHighlight>
                       </h2>
-                      <p className="text-slate-500 font-bold uppercase text-[10px] tracking-[0.3em]">AI-Powered Academic Content Studio</p>
+                      <p className="text-slate-500 font-bold uppercase text-[10px] tracking-[0.3em]">Step {currentStep} of 3</p>
                       
                       <div className="flex justify-center gap-4 mt-12">
                          {[1, 2, 3].map(s => (
@@ -294,9 +304,80 @@ const App: React.FC = () => {
                    <div className="bg-white rounded-[3rem] shadow-2xl border border-slate-100 overflow-hidden flex flex-col min-h-[600px]">
                       <div className="p-12 flex-1">
                         {currentStep === 1 && (
+                          <div className="animate-in slide-in-from-right duration-500 h-full flex flex-col gap-8">
+                             <div className="space-y-4">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">1. Intake Source Material</label>
+                                {!formData.fileData ? (
+                                  <button onClick={() => fileInputRef.current?.click()} className="w-full p-12 border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50 hover:bg-white hover:border-blue-500 hover:shadow-2xl transition-all flex flex-col items-center group relative overflow-hidden">
+                                     {isAnalyzing && (
+                                       <div className="absolute inset-0 bg-blue-600/90 backdrop-blur-md flex flex-col items-center justify-center text-white animate-in fade-in duration-300">
+                                          <Loader2 className="w-12 h-12 animate-spin mb-4" />
+                                          <span className="font-black uppercase tracking-[0.3em] text-xs">AI Extraction in Progress</span>
+                                       </div>
+                                     )}
+                                     <div className="p-6 bg-blue-100 rounded-[2rem] text-blue-600 mb-6 group-hover:scale-110 transition-transform">
+                                        <Upload className="w-12 h-12" />
+                                     </div>
+                                     <h3 className="font-black text-xl uppercase tracking-tighter text-slate-800 mb-2">Upload Documentation</h3>
+                                     <span className="font-bold text-xs uppercase tracking-widest text-slate-400 group-hover:text-blue-600">PDF, DOCX, or Image (Recommended)</span>
+                                     <input ref={fileInputRef} type="file" className="hidden" onChange={handleModuleFileChange} />
+                                  </button>
+                                ) : (
+                                  <div className="flex items-center justify-between p-8 bg-blue-600 rounded-[2rem] text-white shadow-2xl animate-in zoom-in duration-300">
+                                     <div className="flex items-center gap-6">
+                                        <div className="p-4 bg-white/20 rounded-2xl">
+                                           <File className="w-8 h-8" />
+                                        </div>
+                                        <div>
+                                           <p className="text-[10px] font-black uppercase opacity-60 tracking-widest mb-1">Source Material Attached</p>
+                                           <p className="font-black text-xl truncate max-w-[300px]">{formData.fileData.name}</p>
+                                        </div>
+                                     </div>
+                                     <button 
+                                       onClick={() => setFormData(p => ({ ...p, fileData: null }))}
+                                       className="p-4 hover:bg-white/20 rounded-2xl transition-colors"
+                                     >
+                                        <CloseIcon className="w-6 h-6" />
+                                     </button>
+                                  </div>
+                                )}
+                             </div>
+                             
+                             <div className="relative">
+                                <div className="flex justify-between items-center mb-2">
+                                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Or Paste Content Manually</label>
+                                  {isAnalyzing && !formData.fileData && <span className="flex items-center gap-2 text-[10px] font-black text-blue-600 animate-pulse"><Loader2 className="w-3 h-3 animate-spin" /> ANALYZING</span>}
+                                </div>
+                                <textarea 
+                                  className="w-full h-40 p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] font-medium text-slate-700 focus:bg-white focus:border-slate-900 outline-none resize-none transition-all" 
+                                  placeholder="Paste text, questions, or transcript segments here..." 
+                                  value={formData.rawText} 
+                                  onChange={e => setFormData({...formData, rawText: e.target.value})} 
+                                />
+                             </div>
+                             
+                             {!formData.fileData && !formData.rawText && (
+                               <button 
+                                 onClick={() => setCurrentStep(2)}
+                                 className="w-full py-4 bg-white border-2 border-slate-100 rounded-2xl text-slate-400 font-black uppercase tracking-widest text-[10px] hover:border-slate-900 hover:text-slate-900 transition-all"
+                               >
+                                 Skip Upload & Configure Manually
+                               </button>
+                             )}
+                          </div>
+                        )}
+
+                        {currentStep === 2 && (
                           <div className="animate-in slide-in-from-right duration-500 space-y-12">
+                             {isAnalyzing && (
+                               <div className="flex items-center gap-4 p-4 bg-blue-50 border border-blue-100 rounded-2xl animate-pulse">
+                                  <Sparkles className="w-5 h-5 text-blue-600" />
+                                  <span className="font-black text-[10px] uppercase tracking-widest text-blue-800">AI is refining the Blueprint...</span>
+                               </div>
+                             )}
+
                              <section>
-                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 block">1. Select Learner Developmental Stage</label>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 block">2. Review Target Audience</label>
                                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                                    {CATEGORIES.map(cat => (
                                      <button 
@@ -312,30 +393,32 @@ const App: React.FC = () => {
                              </section>
 
                              <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                                <section className="animate-in fade-in duration-700">
-                                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 block">2. Exact Level / Grade</label>
-                                   <select className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-slate-700 outline-none focus:border-slate-900" value={formData.educationalLevel} onChange={(e) => setFormData({...formData, educationalLevel: e.target.value})}>
-                                      {activeCategory?.sub.map(s => <option key={s} value={s}>{s}</option>)}
-                                   </select>
+                                <section>
+                                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 block">Specific Year/Level</label>
+                                   <input 
+                                     type="text"
+                                     className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-slate-700 outline-none focus:border-slate-900"
+                                     value={formData.educationalLevel}
+                                     onChange={(e) => setFormData({...formData, educationalLevel: e.target.value})}
+                                     placeholder="e.g. Grade 10, Freshman"
+                                   />
                                 </section>
 
                                 <section>
-                                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 block">3. Document Settings</label>
-                                   <div className="space-y-4">
-                                      <div className="flex gap-4">
-                                         <select className="flex-1 p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-xs text-slate-700 outline-none" value={formData.documentType} onChange={e => setFormData({...formData, documentType: e.target.value as DocumentType})}>
-                                            {Object.values(DocumentType).map(t => <option key={t} value={t}>{t}</option>)}
-                                         </select>
-                                         <select className="flex-1 p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-xs text-slate-700 outline-none" value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}>
-                                            <option>English</option><option>Spanish</option><option>French</option><option>German</option>
-                                         </select>
-                                      </div>
+                                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 block">Document Settings</label>
+                                   <div className="flex gap-4">
+                                      <select className="flex-1 p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-xs text-slate-700 outline-none" value={formData.documentType} onChange={e => setFormData({...formData, documentType: e.target.value as DocumentType})}>
+                                         {Object.values(DocumentType).map(t => <option key={t} value={t}>{t}</option>)}
+                                      </select>
+                                      <select className="flex-1 p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-xs text-slate-700 outline-none" value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}>
+                                         <option>English</option><option>Spanish</option><option>French</option><option>German</option>
+                                      </select>
                                    </div>
                                 </section>
                              </div>
 
                              <section>
-                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 block">4. Learner Profile & Context</label>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 block">Learner Profile</label>
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                    {PROFILES.map(prof => (
                                       <button key={prof.id} onClick={() => setFormData({ ...formData, learnerProfile: prof.id })} className={`p-4 rounded-2xl border-2 transition-all flex items-center gap-3 ${formData.learnerProfile === prof.id ? 'bg-white border-slate-900 ring-4 ring-slate-100' : 'bg-slate-50 border-slate-100 hover:border-slate-200'}`}>
@@ -358,70 +441,27 @@ const App: React.FC = () => {
                           </div>
                         )}
 
-                        {currentStep === 2 && (
-                          <div className="animate-in slide-in-from-right duration-500 h-full flex flex-col gap-8">
-                             <div className="space-y-4">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Course Documentation</label>
-                                {!formData.fileData ? (
-                                  <button onClick={() => fileInputRef.current?.click()} className="w-full p-8 border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50 hover:bg-white hover:border-blue-500 hover:shadow-xl transition-all flex flex-col items-center group">
-                                     <div className="p-4 bg-blue-100 rounded-2xl text-blue-600 mb-4 group-hover:scale-110 transition-transform">
-                                        <Upload className="w-8 h-8" />
-                                     </div>
-                                     <span className="font-black text-xs uppercase tracking-widest text-slate-400 group-hover:text-blue-600">Attach Module Material (PDF, DOCX, IMG)</span>
-                                     <input ref={fileInputRef} type="file" className="hidden" onChange={handleModuleFileChange} />
-                                  </button>
-                                ) : (
-                                  <div className="flex items-center justify-between p-6 bg-blue-600 rounded-[2rem] text-white shadow-2xl animate-in zoom-in duration-300">
-                                     <div className="flex items-center gap-4">
-                                        <div className="p-3 bg-white/20 rounded-xl">
-                                           <File className="w-6 h-6" />
-                                        </div>
-                                        <div>
-                                           <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Document Attached</p>
-                                           <p className="font-black text-sm truncate max-w-[200px]">{formData.fileData.name}</p>
-                                        </div>
-                                     </div>
-                                     <button 
-                                       onClick={() => setFormData(p => ({ ...p, fileData: null }))}
-                                       className="p-3 hover:bg-white/20 rounded-xl transition-colors"
-                                     >
-                                        <CloseIcon className="w-5 h-5" />
-                                     </button>
-                                  </div>
-                                )}
-                             </div>
-                             
-                             <div className="relative">
-                                <div className="flex justify-between items-center mb-2">
-                                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Direct Context Input</label>
-                                  {isAnalyzing && <span className="flex items-center gap-2 text-[10px] font-black text-blue-600 animate-pulse"><Loader2 className="w-3 h-3 animate-spin" /> ANALYZING</span>}
-                                </div>
-                                <textarea className="w-full h-40 p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] font-medium text-slate-700 focus:bg-white focus:border-slate-900 outline-none resize-none transition-all" placeholder="Paste additional notes or lecture summaries here..." value={formData.rawText} onChange={e => setFormData({...formData, rawText: e.target.value})} />
-                             </div>
-                          </div>
-                        )}
-
                         {currentStep === 3 && (
                           <div className="animate-in slide-in-from-right duration-500 h-full flex flex-col gap-8">
-                             <div className="p-8 bg-blue-50 rounded-3xl border border-blue-100 flex items-center justify-between">
+                             <div className="p-8 bg-blue-50 rounded-[2.5rem] border border-blue-100 flex items-center justify-between">
                                 <div className="flex items-center gap-6">
                                    <div className="p-4 bg-blue-600 rounded-2xl text-white shadow-lg"><FileText className="w-6 h-6" /></div>
                                    <div>
-                                      <p className="text-[10px] font-black uppercase text-blue-400 tracking-widest mb-1">Target Section</p>
-                                      <h4 className="text-xl font-black text-blue-900 uppercase leading-none">{formData.topic.split(':')[0]}</h4>
+                                      <p className="text-[10px] font-black uppercase text-blue-400 tracking-widest mb-1">Target Assessment</p>
+                                      <h4 className="text-xl font-black text-blue-900 uppercase leading-none">{formData.customTitle || formData.topic || 'Untitled Session'}</h4>
                                    </div>
                                 </div>
                                 {formData.fileData && (
                                    <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-blue-200">
                                       <File className="w-3.5 h-3.5 text-blue-600" />
-                                      <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest">Doc Attached</span>
+                                      <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest">Processed Doc</span>
                                    </div>
                                 )}
                              </div>
 
                              <div className="space-y-6">
                                 <div>
-                                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Question Configuration</label>
+                                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Questions to Generate</label>
                                    <div className="grid grid-cols-2 gap-4">
                                       {Object.entries(formData.questionCounts).map(([type, count]) => (
                                          <div key={type} className="flex items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-2xl">
@@ -437,7 +477,7 @@ const App: React.FC = () => {
                                 </div>
                                 
                                 <button onClick={handleGenerate} className="w-full py-6 bg-slate-900 text-white rounded-[2rem] font-black text-xl uppercase tracking-widest hover:bg-slate-800 transition-all shadow-2xl active:scale-95 flex items-center justify-center gap-4 mt-8">
-                                   <Wand2 className="w-6 h-6 text-yellow-400" /> Assemble Assessment
+                                   <Wand2 className="w-6 h-6 text-yellow-400" /> Assemble Final Assessment
                                 </button>
                              </div>
                           </div>
