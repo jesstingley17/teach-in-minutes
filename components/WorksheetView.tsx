@@ -8,7 +8,8 @@ import { jsPDF } from 'jspdf';
 import { 
   Edit3, Check, Landmark, Printer, Loader2, ShieldCheck, PenTool, QrCode, BookOpen, Star,
   Settings, X, Monitor, Maximize, FileText, Type as TypeIcon, Hash, ChevronRight,
-  Palette, MousePointer2, Briefcase, GraduationCap as CapIcon, PlayCircle
+  Palette, MousePointer2, Briefcase, GraduationCap as CapIcon, PlayCircle, Trash2, PlusCircle,
+  Save
 } from 'lucide-react';
 
 interface WorksheetViewProps {
@@ -38,6 +39,8 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
   const [worksheet, setWorksheet] = useState<Worksheet>(initialWorksheet);
   const [isBuilderMode, setIsBuilderMode] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const [doodles, setDoodles] = useState<string[]>([]);
   const [selectedStyle, setSelectedStyle] = useState<HandwritingStyle>('Classic');
   
@@ -77,6 +80,37 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
       case 'Modern': return 'font-sans font-black italic';
       default: return 'font-sans font-black';
     }
+  };
+
+  const handleSaveDraft = () => {
+    setIsSaving(true);
+    // Mimic processing for high-end feel
+    setTimeout(() => {
+      try {
+        const localUser = JSON.parse(localStorage.getItem('local_user_profile') || '{"id":"local-arch"}');
+        const prefix = localUser.id || 'local-arch';
+        const archive = JSON.parse(localStorage.getItem(`archive_${prefix}`) || '[]');
+        
+        const existingIdx = archive.findIndex((ws: Worksheet) => ws.id === worksheet.id);
+        let updatedArchive;
+        if (existingIdx >= 0) {
+          updatedArchive = [...archive];
+          updatedArchive[existingIdx] = { ...worksheet, savedAt: Date.now() };
+        } else {
+          const newId = worksheet.id || Math.random().toString(36).substr(2, 9);
+          updatedArchive = [{ ...worksheet, id: newId, savedAt: Date.now() }, ...archive];
+        }
+        
+        localStorage.setItem(`archive_${prefix}`, JSON.stringify(updatedArchive.slice(0, 50)));
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 3000);
+      } catch (err) {
+        console.error("Save Draft Failed:", err);
+        alert("Failed to save draft to local storage.");
+      } finally {
+        setIsSaving(false);
+      }
+    }, 600);
   };
 
   const handleExportPDF = async () => {
@@ -141,6 +175,22 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
     });
   };
 
+  const deleteOption = (questionId: string, optionIndex: number) => {
+    const question = worksheet.questions.find(q => q.id === questionId);
+    if (!question || !question.options) return;
+    
+    const newOptions = question.options.filter((_, i) => i !== optionIndex);
+    updateQuestion(questionId, { options: newOptions });
+  };
+
+  const addOption = (questionId: string) => {
+    const question = worksheet.questions.find(q => q.id === questionId);
+    if (!question) return;
+    
+    const newOptions = [...(question.options || []), "New Option"];
+    updateQuestion(questionId, { options: newOptions });
+  };
+
   const EditableField = ({ value, onSave, className, multiline = false, placeholder = "", isMath = true }: any) => {
     const [local, setLocal] = useState(value);
     const [editing, setEditing] = useState(false);
@@ -174,6 +224,14 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
             <button onClick={() => setIsBuilderMode(!isBuilderMode)} className={`flex items-center gap-2 px-4 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all ${isBuilderMode ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-50 hover:bg-slate-100'}`}>
               {isBuilderMode ? <Check className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}
               {isBuilderMode ? 'Commit Synthesis' : 'Enter Architect Mode'}
+            </button>
+            <button 
+              onClick={handleSaveDraft} 
+              disabled={isSaving}
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all shadow-sm ${saveSuccess ? 'bg-green-100 text-green-700 border-green-200' : 'bg-slate-50 hover:bg-slate-100 text-slate-700'}`}
+            >
+              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : saveSuccess ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+              {saveSuccess ? 'Archive Updated' : 'Save as Draft'}
             </button>
             <button onClick={() => setIsPrintModalOpen(true)} disabled={isExporting} className="flex items-center gap-2 px-4 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest bg-slate-900 text-white shadow-sm disabled:opacity-50 hover:bg-slate-800">
               {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
@@ -402,13 +460,34 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
 
                      <div className="ml-16">
                         {q.options && (
-                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              {q.options.map((opt, i) => (
-                                 <div key={i} className={`flex items-center gap-3 p-3 border border-slate-100 bg-slate-50/50 ${selectedStyle === 'Creative' ? 'rounded-2xl rotate-[0.5deg]' : ''}`}>
-                                    <span className="w-6 h-6 flex items-center justify-center border border-slate-200 text-[8px] font-black text-slate-300">{String.fromCharCode(65 + i)}</span>
-                                    <EditableField value={opt} onSave={(v: any) => { const n = [...(q.options||[])]; n[i]=v; updateQuestion(q.id, {options: n}); }} className="text-xs font-medium" />
-                                 </div>
-                              ))}
+                           <div className="space-y-4">
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {q.options.map((opt, i) => (
+                                   <div key={i} className={`flex items-center gap-3 p-3 border border-slate-100 bg-slate-50/50 group/opt ${selectedStyle === 'Creative' ? 'rounded-2xl rotate-[0.5deg]' : ''}`}>
+                                      <span className="w-6 h-6 flex-shrink-0 flex items-center justify-center border border-slate-200 text-[8px] font-black text-slate-300">{String.fromCharCode(65 + i)}</span>
+                                      <div className="flex-1">
+                                        <EditableField value={opt} onSave={(v: any) => { const n = [...(q.options||[])]; n[i]=v; updateQuestion(q.id, {options: n}); }} className="text-xs font-medium" />
+                                      </div>
+                                      {isBuilderMode && (
+                                        <button 
+                                          onClick={() => deleteOption(q.id, i)}
+                                          className="p-1 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover/opt:opacity-100 no-print"
+                                          title="Delete Option"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
+                                   </div>
+                                ))}
+                             </div>
+                             {isBuilderMode && (
+                               <button 
+                                 onClick={() => addOption(q.id)}
+                                 className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-slate-100 rounded-xl text-[10px] font-black uppercase text-slate-300 hover:border-blue-300 hover:text-blue-500 transition-all no-print"
+                               >
+                                 <PlusCircle className="w-4 h-4" /> Add Option
+                               </button>
+                             )}
                            </div>
                         )}
                         {(q.type === QuestionType.SHORT_ANSWER || q.type === QuestionType.ESSAY) && (
@@ -448,10 +527,17 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
                      <div className="flex-1 space-y-4">
                         <div className={`p-6 bg-slate-50 border border-slate-100 rounded-xl ${selectedStyle === 'Creative' ? 'rounded-[2rem] border-dashed bg-white' : ''}`}>
                            <p className="text-[7px] font-black uppercase text-slate-400 mb-2">Verified Solution</p>
-                           <p className="text-xl font-black"><LatexRenderer content={q.correctAnswer} /></p>
+                           <p className="text-xl font-black">
+                             <EditableField value={q.correctAnswer} onSave={(v: any) => updateQuestion(q.id, {correctAnswer: v})} />
+                           </p>
                         </div>
                         {q.explanation && (
-                           <p className="text-xs font-medium text-slate-500 italic"><LatexRenderer content={q.explanation} /></p>
+                           <div className="pt-2">
+                             <p className="text-[8px] font-black uppercase text-slate-400 mb-1">Instructional Commentary</p>
+                             <p className="text-xs font-medium text-slate-500 italic">
+                               <EditableField multiline value={q.explanation} onSave={(v: any) => updateQuestion(q.id, {explanation: v})} />
+                             </p>
+                           </div>
                         )}
                      </div>
                   </div>
