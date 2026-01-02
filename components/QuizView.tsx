@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { Worksheet, QuestionType, ThemeType } from '../types';
-import { MarkerHighlight } from './HandwritingElements';
-import { LatexRenderer } from './LatexRenderer';
+import { Worksheet, QuestionType, ThemeType } from '../types.ts';
+import { MarkerHighlight } from './HandwritingElements.tsx';
+import { LatexRenderer } from './LatexRenderer.tsx';
 import { CheckCircle, XCircle, RefreshCw, BarChart3, Clock, AlertCircle, ArrowLeft } from 'lucide-react';
 
 interface QuizAttempt {

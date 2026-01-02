@@ -8,7 +8,7 @@ import { jsPDF } from 'jspdf';
 import { 
   Edit3, Check, Landmark, Printer, Loader2, ShieldCheck, PenTool, QrCode, BookOpen, Star,
   Settings, X, Monitor, Maximize, FileText, Type as TypeIcon, Hash, ChevronRight,
-  Palette, MousePointer2, Briefcase, GraduationCap as CapIcon
+  Palette, MousePointer2, Briefcase, GraduationCap as CapIcon, PlayCircle
 } from 'lucide-react';
 
 interface WorksheetViewProps {
@@ -16,6 +16,7 @@ interface WorksheetViewProps {
   theme: any;
   showKey?: boolean;
   onUpdate?: (worksheet: Worksheet) => void;
+  onLaunchQuiz?: () => void;
 }
 
 interface PrintSettings {
@@ -31,7 +32,8 @@ type HandwritingStyle = 'Classic' | 'Creative' | 'Modern' | 'Academic';
 export const WorksheetView: React.FC<WorksheetViewProps> = ({ 
   worksheet: initialWorksheet, 
   showKey = false, 
-  onUpdate
+  onUpdate,
+  onLaunchQuiz
 }) => {
   const [worksheet, setWorksheet] = useState<Worksheet>(initialWorksheet);
   const [isBuilderMode, setIsBuilderMode] = useState(false);
@@ -177,6 +179,11 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
               {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
               Materialize PDF
             </button>
+            {onLaunchQuiz && (
+              <button onClick={onLaunchQuiz} className="flex items-center gap-2 px-4 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest bg-blue-50 text-blue-700 hover:bg-blue-100 transition-all border border-blue-200">
+                <PlayCircle className="w-4 h-4" /> Launch Practice Quiz
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <span className="text-[8px] font-black uppercase text-slate-300">Handwriting Signature:</span>

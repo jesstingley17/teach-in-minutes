@@ -131,7 +131,8 @@ export enum AppMode {
   GENERATOR = 'GENERATOR',
   WORKSHEET = 'WORKSHEET',
   BULK_REVIEW = 'BULK_REVIEW',
-  SETTINGS = 'SETTINGS'
+  SETTINGS = 'SETTINGS',
+  QUIZ = 'QUIZ'
 }
 
 export enum ThemeType {
@@ -147,4 +148,5 @@ export interface Question {
   correctAnswer: string;
   explanation: string;
   points?: number;
+  isChallenge?: boolean;
 }

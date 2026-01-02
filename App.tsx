@@ -3,12 +3,13 @@ import React, { useState, useRef, useEffect } from 'react';
 import { AppMode, Worksheet, ThemeType, QuestionType, DocumentType, AudienceCategory, LearnerProfile, CurriculumStandard, BrandingConfig, LayoutStyle, CognitiveDepth } from './types.ts';
 import { generateWorksheet } from './services/geminiService.ts';
 import { WorksheetView } from './components/WorksheetView.tsx';
+import { QuizView } from './components/QuizView.tsx';
 import { 
   GraduationCap, Loader2, Plus, Sparkles, CloudUpload, 
   BookOpen, XCircle, Library, Eye,
   Languages, BrainCircuit, Star, Zap, Construction, Target,
   Settings, Layers, ChevronRight, Layout, Palette, Trash2, ArrowLeft,
-  Settings2, Sliders, ListChecks, Hash, Gauge, Microscope, Copy, Check, User
+  Settings2, Sliders, ListChecks, Hash, Gauge, Microscope, Copy, Check, User, PlayCircle
 } from 'lucide-react';
 
 const DEFAULT_BRANDING: BrandingConfig = {
@@ -214,6 +215,38 @@ const App: React.FC = () => {
                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-2">Factory Synthesis active: Architecting unique pedagogical nodes for {formData.topic}...</p>
                </div>
             </div>
+          ) : mode === AppMode.ONBOARDING ? (
+            <div className="max-w-4xl mx-auto py-12 animate-in fade-in duration-700">
+               <div className="text-center mb-16">
+                  <Library className="w-12 h-12 mx-auto mb-6 text-slate-900" />
+                  <h2 className="text-5xl font-black uppercase tracking-tighter italic">Source Intake</h2>
+                  <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Onboard Master Files for Synthesis</p>
+               </div>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="p-12 border-2 border-slate-100 rounded-[3rem] hover:border-slate-900 transition-all cursor-pointer group flex flex-col justify-between" onClick={() => guidelineInputRef.current?.click()}>
+                     <input type="file" ref={guidelineInputRef} className="hidden" accept=".pdf,image/*" onChange={e => {
+                        const f = e.target.files?.[0]; if (f) { const r = new FileReader(); r.onloadend = () => { 
+                           setFormData({...formData, guidelineData: { data: (r.result as string).split(',')[1], mimeType: f.type, name: f.name }});
+                           setMode(AppMode.GENERATOR);
+                        }; r.readAsDataURL(f); }
+                     }} />
+                     <div>
+                        <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center mb-8 group-hover:bg-slate-900 group-hover:text-white transition-all"><CloudUpload className="w-6 h-6" /></div>
+                        <h3 className="text-3xl font-black uppercase tracking-tight">Source-Anchored</h3>
+                        <p className="text-slate-400 font-bold text-xs mt-4 leading-relaxed uppercase">Generate from your textbooks or slides.</p>
+                     </div>
+                     <span className="text-[9px] font-black uppercase tracking-widest text-slate-900 mt-12 flex items-center gap-2">Attach & Synthesize <ChevronRight className="w-3 h-3" /></span>
+                  </div>
+                  <div className="p-12 bg-slate-900 rounded-[3rem] flex flex-col justify-between cursor-pointer hover:bg-slate-800 transition-all" onClick={() => setMode(AppMode.GENERATOR)}>
+                     <div>
+                        <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center mb-8 text-white"><Zap className="w-6 h-6" /></div>
+                        <h3 className="text-3xl font-black uppercase tracking-tight text-white">Direct Synthesis</h3>
+                        <p className="text-white/40 font-bold text-xs mt-4 leading-relaxed uppercase">Build from concepts or prompts.</p>
+                     </div>
+                     <span className="text-[9px] font-black uppercase tracking-widest text-white/60 mt-12 flex items-center gap-2">Proceed Clean <ChevronRight className="w-3 h-3" /></span>
+                  </div>
+               </div>
+            </div>
           ) : mode === AppMode.GENERATOR ? (
             <div className="max-w-6xl mx-auto py-4">
                <header className="mb-12 flex justify-between items-end">
@@ -340,38 +373,6 @@ const App: React.FC = () => {
                  </div>
                )}
             </div>
-          ) : mode === AppMode.ONBOARDING ? (
-            <div className="max-w-4xl mx-auto py-12 animate-in fade-in duration-700">
-               <div className="text-center mb-16">
-                  <Library className="w-12 h-12 mx-auto mb-6 text-slate-900" />
-                  <h2 className="text-5xl font-black uppercase tracking-tighter italic">Source Intake</h2>
-                  <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Onboard Master Files for Synthesis</p>
-               </div>
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="p-12 border-2 border-slate-100 rounded-[3rem] hover:border-slate-900 transition-all cursor-pointer group flex flex-col justify-between" onClick={() => guidelineInputRef.current?.click()}>
-                     <input type="file" ref={guidelineInputRef} className="hidden" accept=".pdf,image/*" onChange={e => {
-                        const f = e.target.files?.[0]; if (f) { const r = new FileReader(); r.onloadend = () => { 
-                           setFormData({...formData, guidelineData: { data: (r.result as string).split(',')[1], mimeType: f.type, name: f.name }});
-                           setMode(AppMode.GENERATOR);
-                        }; r.readAsDataURL(f); }
-                     }} />
-                     <div>
-                        <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center mb-8 group-hover:bg-slate-900 group-hover:text-white transition-all"><CloudUpload className="w-6 h-6" /></div>
-                        <h3 className="text-3xl font-black uppercase tracking-tight">Source-Anchored</h3>
-                        <p className="text-slate-400 font-bold text-xs mt-4 leading-relaxed uppercase">Generate from your textbooks or slides.</p>
-                     </div>
-                     <span className="text-[9px] font-black uppercase tracking-widest text-slate-900 mt-12 flex items-center gap-2">Attach & Synthesize <ChevronRight className="w-3 h-3" /></span>
-                  </div>
-                  <div className="p-12 bg-slate-900 rounded-[3rem] flex flex-col justify-between cursor-pointer hover:bg-slate-800 transition-all" onClick={() => setMode(AppMode.GENERATOR)}>
-                     <div>
-                        <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center mb-8 text-white"><Zap className="w-6 h-6" /></div>
-                        <h3 className="text-3xl font-black uppercase tracking-tight text-white">Direct Synthesis</h3>
-                        <p className="text-white/40 font-bold text-xs mt-4 leading-relaxed uppercase">Build from concepts or prompts.</p>
-                     </div>
-                     <span className="text-[9px] font-black uppercase tracking-widest text-white/60 mt-12 flex items-center gap-2">Proceed Clean <ChevronRight className="w-3 h-3" /></span>
-                  </div>
-               </div>
-            </div>
           ) : mode === AppMode.BULK_REVIEW ? (
             <div className="max-w-6xl mx-auto py-12 animate-in fade-in duration-700">
                <header className="mb-16 flex justify-between items-end">
@@ -436,12 +437,28 @@ const App: React.FC = () => {
                   </div>
                </div>
             </div>
+          ) : mode === AppMode.QUIZ && worksheet ? (
+            <QuizView 
+              worksheet={worksheet} 
+              theme={branding.defaultTheme} 
+              onExit={() => setMode(AppMode.WORKSHEET)} 
+              isMathMode={true} 
+            />
           ) : worksheet && (
             <div className="animate-in fade-in duration-500">
-               <WorksheetView worksheet={worksheet} theme={branding.defaultTheme} showKey={showTeacherKey} onUpdate={setWorksheet} />
+               <WorksheetView 
+                  worksheet={worksheet} 
+                  theme={branding.defaultTheme} 
+                  showKey={showTeacherKey} 
+                  onUpdate={setWorksheet} 
+                  onLaunchQuiz={() => setMode(AppMode.QUIZ)}
+               />
                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-white/90 p-3 rounded-full shadow-2xl border border-slate-100 z-[90] no-print backdrop-blur-md">
                   <button onClick={() => setShowTeacherKey(!showTeacherKey)} className={`px-8 py-3 rounded-full font-black text-[10px] uppercase tracking-widest transition-all ${showTeacherKey ? 'bg-red-600 text-white' : 'bg-slate-50 border hover:bg-slate-100'}`}>
                     {showTeacherKey ? 'Hide Solution' : 'Solution Registry'}
+                  </button>
+                  <button onClick={() => setMode(AppMode.QUIZ)} className="px-8 py-3 bg-blue-600 text-white rounded-full font-black text-[10px] uppercase tracking-widest shadow-xl flex items-center gap-2 hover:bg-blue-700 transition-all">
+                    <PlayCircle className="w-4 h-4" /> Practice Mode
                   </button>
                   <button onClick={() => setMode(AppMode.GENERATOR)} className="px-8 py-3 bg-slate-900 text-white rounded-full font-black text-[10px] uppercase tracking-widest shadow-xl">Architect Studio</button>
                </div>
