@@ -1,0 +1,7 @@
+{
+  "name": "Copy of Teach in Minutes",
+  "description": "An interactive worksheet and quiz generator with a beautiful handwriting theme and advanced AI content generation.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
