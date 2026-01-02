@@ -26,6 +26,8 @@ const App: React.FC = () => {
   const [isGuest, setIsGuest] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState<string | null>(null);
   const [hasApiKey, setHasApiKey] = useState(false);
 
   const [mode, setMode] = useState<AppMode>(AppMode.ONBOARDING);
@@ -70,8 +72,10 @@ const App: React.FC = () => {
       }
     };
     checkApiKey();
+
     const savedBranding = localStorage.getItem('institutional_branding');
     if (savedBranding) setBranding(JSON.parse(savedBranding));
+
     if (isSupabaseConfigured) {
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session) { setUser(session.user); setIsGuest(false); }
@@ -82,6 +86,7 @@ const App: React.FC = () => {
       if (localSession) { setUser(JSON.parse(localSession)); }
       setAuthLoading(false);
     }
+    
     if (localStorage.getItem('isGuest') === 'true') setIsGuest(true);
   }, []);
 
@@ -91,6 +96,22 @@ const App: React.FC = () => {
     const prefix = user?.email || 'guest';
     const local = JSON.parse(localStorage.getItem(`archive_${prefix}`) || '[]');
     setSavedWorksheets(local);
+  };
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+
+    // Hardcoded credentials for jtingley
+    if (email === 'jtingley@anchorchartpro.com' && password === 'Password123') {
+      const sessionUser = { email, id: 'jtingley-pro-session' };
+      setUser(sessionUser);
+      setIsGuest(false);
+      localStorage.setItem('local_user_session', JSON.stringify(sessionUser));
+      setMode(AppMode.ONBOARDING);
+    } else {
+      setAuthError("Invalid faculty credentials. Access denied.");
+    }
   };
 
   const handleSaveBranding = () => {
@@ -138,7 +159,7 @@ const App: React.FC = () => {
     } finally { setLoading(false); }
   };
 
-  const ScaffoldingTile = ({ icon: Icon, label, value, active, onClick, color }: any) => (
+  const ScaffoldingTile = ({ icon: Icon, label, value, active, onClick }: any) => (
     <button 
       onClick={() => onClick(value)}
       className={`relative p-6 rounded-[2.5rem] border-2 transition-all flex flex-col items-center text-center gap-4 group ${
@@ -180,10 +201,25 @@ const App: React.FC = () => {
         </div>
       </div>
       <div className="w-full lg:w-[500px] bg-white p-12 flex flex-col justify-center">
-        <form onSubmit={(e) => { e.preventDefault(); setUser({email, id: 'local'}); }} className="space-y-6">
+        <form onSubmit={handleLogin} className="space-y-6">
           <h2 className="text-4xl font-black uppercase tracking-tighter mb-8">Faculty Portal</h2>
-          <input required type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email / Faculty ID" className="w-full p-4 bg-slate-50 border-2 rounded-xl outline-none focus:border-slate-900" />
-          <input required type="password" placeholder="Passkey" className="w-full p-4 bg-slate-50 border-2 rounded-xl outline-none focus:border-slate-900" />
+          {authError && <div className="p-4 bg-red-50 text-red-600 rounded-xl text-xs font-bold border border-red-100 animate-bounce">{authError}</div>}
+          <input 
+            required 
+            type="email" 
+            value={email} 
+            onChange={e => setEmail(e.target.value)} 
+            placeholder="Email / Faculty ID" 
+            className="w-full p-4 bg-slate-50 border-2 rounded-xl outline-none focus:border-slate-900 font-bold" 
+          />
+          <input 
+            required 
+            type="password" 
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            placeholder="Passkey" 
+            className="w-full p-4 bg-slate-50 border-2 rounded-xl outline-none focus:border-slate-900 font-bold" 
+          />
           <button className="w-full py-4 bg-slate-900 text-white rounded-xl font-black uppercase tracking-widest hover:bg-slate-800 transition-all">Establish Session</button>
           <button type="button" onClick={() => { setIsGuest(true); localStorage.setItem('isGuest', 'true'); }} className="w-full py-4 bg-white border-2 text-slate-500 rounded-xl font-black uppercase tracking-widest text-[10px]">Guest Access</button>
         </form>
@@ -218,7 +254,7 @@ const App: React.FC = () => {
            <button onClick={() => setMode(AppMode.SETTINGS)} className={`w-full p-3 rounded-xl flex items-center gap-3 font-black text-[9px] uppercase tracking-widest transition-all ${mode === AppMode.SETTINGS ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>
               <Settings className="w-4 h-4" /> Branding Portal
            </button>
-           <button onClick={() => { setUser(null); setIsGuest(false); localStorage.removeItem('isGuest'); }} className="w-full p-3 rounded-xl flex items-center gap-3 font-black text-[9px] uppercase tracking-widest text-slate-400 hover:text-red-500 transition-colors">
+           <button onClick={() => { setUser(null); setIsGuest(false); localStorage.removeItem('local_user_session'); localStorage.removeItem('isGuest'); }} className="w-full p-3 rounded-xl flex items-center gap-3 font-black text-[9px] uppercase tracking-widest text-slate-400 hover:text-red-500 transition-colors">
               <XCircle className="w-4 h-4" /> End Session
            </button>
         </div>
@@ -328,7 +364,7 @@ const App: React.FC = () => {
                   {currentStep === 2 && (
                      <div className="space-y-12 animate-in slide-in-from-right duration-300">
                         <div>
-                           <label className="text-[10px] font-black uppercase text-slate-400 px-2 tracking-widest mb-6 block">Target Student Needs (The Cool Buttons)</label>
+                           <label className="text-[10px] font-black uppercase text-slate-400 px-2 tracking-widest mb-6 block">Target Student Needs</label>
                            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                               <ScaffoldingTile icon={Languages} label="ESL / ELL" value={LearnerProfile.ESL_ELL} active={formData.learnerProfile === LearnerProfile.ESL_ELL} onClick={(v: any) => setFormData({...formData, learnerProfile: v})} />
                               <ScaffoldingTile icon={BrainCircuit} label="IEP / Spec Ed" value={LearnerProfile.SPECIAL_ED} active={formData.learnerProfile === LearnerProfile.SPECIAL_ED} onClick={(v: any) => setFormData({...formData, learnerProfile: v})} />
