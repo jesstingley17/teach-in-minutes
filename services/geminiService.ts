@@ -15,6 +15,40 @@ export interface GenerationOptions {
   curriculumStandard?: CurriculumStandard;
 }
 
+// Generate a set of educational doodles for a given topic and grade level
+export async function generateDoodles(topic: string, gradeLevel: string): Promise<string[]> {
+  const ai = getAI();
+  const prompt = `Create a set of simple, minimalist black and white line-art sketches that a teacher might draw on a worksheet for ${gradeLevel} students about the topic: ${topic}. These should be educational icons or symbols.`;
+  
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-image',
+      contents: {
+        parts: [{ text: prompt }]
+      },
+      config: {
+        imageConfig: {
+          aspectRatio: "1:1"
+        }
+      }
+    });
+
+    const imageUrls: string[] = [];
+    if (response.candidates?.[0]?.content?.parts) {
+      for (const part of response.candidates[0].content.parts) {
+        if (part.inlineData) {
+          imageUrls.push(`data:${part.inlineData.mimeType};base64,${part.inlineData.data}`);
+        }
+      }
+    }
+    
+    return imageUrls;
+  } catch (error) {
+    console.error("Doodle Generation Failure:", error);
+    return [];
+  }
+}
+
 export async function generateWorksheet(options: GenerationOptions): Promise<Worksheet[]> {
   const { 
     topic, educationalLevel, audienceCategory, 
@@ -29,33 +63,37 @@ export async function generateWorksheet(options: GenerationOptions): Promise<Wor
   }
 
   const promptText = `
-    ROLE: Senior Academic Architect.
-    TASK: Construct a bespoke instructional suite for the topic: "${topic}".
+    ROLE: World-Class Academic Architect & Curriculum Designer.
+    TASK: Materialize a DIVERSIFIED INSTRUCTIONAL SUITE for: "${topic}".
     
-    COLLECTION PARAMETERS:
-    - EDUCATIONAL LEVEL: ${educationalLevel}
+    COLLECTION GOAL:
+    Generate EXACTLY ${containerIntents.length} unique educational instruments.
+    Even if instruments have the same DocumentType, they MUST vary in their specific content focus to provide a complete learning experience.
+    
+    GLOBAL CONTEXT:
+    - TOPIC: ${topic}
+    - LEVEL: ${educationalLevel}
     - AUDIENCE: ${audienceCategory}
     - LANGUAGE: ${language}
-    - TOPIC: ${topic}
-    ${rawText ? `- CONTEXT: ${rawText}` : ''}
+    ${rawText ? `- ANCHOR CONTENT: ${rawText}` : ''}
     
-    GENERATE EXACTLY ${containerIntents.length} DOCUMENTS IN AN ARRAY.
-    
-    SPECIFIC PER-DOCUMENT REQUIREMENTS:
+    INSTRUMENT BLUEPRINTS:
     ${containerIntents.map((intent, i) => `
-    [DOCUMENT ${i+1}]
-    - CATEGORY: ${intent.type}
-    - PROFILE: ${intent.profile} (Modify vocabulary and complexity for this learner profile)
-    - DEPTH: ${intent.depth} (Bloom's Taxonomy target)
+    [INSTRUMENT ${i+1}]
+    - TYPE: ${intent.type}
+    - DEPTH: ${intent.depth}
+    - SCAFFOLDING: ${intent.profile}
     - LAYOUT: ${intent.layout}
-    - QUESTIONS NEEDED: ${Object.entries(intent.questionCounts).map(([type, count]) => `${count}x ${type}`).join(', ')}
-    - UNIQUE NOTES: ${intent.specificInstructions || 'None'}
+    - STRUCTURE: ${Object.entries(intent.questionCounts).map(([t, c]) => `${c}x ${t}`).join(', ')}
+    - SPECIFIC GOAL: ${intent.specificInstructions || 'Generate comprehensive coverage of the topic.'}
     `).join('\n')}
 
-    FORMATTING:
-    - If LAYOUT is LAID_TEACH, generate 'teachingContent' (comprehensive mini-lesson) and 'keyTakeaways'.
-    - MATH: Use $...$ for equations.
-    - OUTPUT: JSON ARRAY matching the schema.
+    REQUIREMENTS:
+    1. If LAYOUT is LAID_TEACH, generate 'teachingContent' (3 paragraphs of rigorous instructional summary) and 'keyTakeaways' (5 punchy points).
+    2. MATH: Always use $...$ for variables and equations.
+    3. PRINT OPTIMIZATION: Ensure text is clear and content is dense but readable.
+    
+    OUTPUT: A JSON ARRAY of ${containerIntents.length} Worksheet objects.
   `;
   
   parts.push({ text: promptText });
@@ -105,28 +143,7 @@ export async function generateWorksheet(options: GenerationOptions): Promise<Wor
       visualMetadata: { layoutStyle: containerIntents[i].layout }
     })) as Worksheet[];
   } catch (error: any) { 
-    console.error("AI Suite Generation Error:", error);
+    console.error("Factory Synthesis Failure:", error);
     throw error; 
   }
-}
-
-export async function generateDoodles(topic: string, gradeLevel: string): Promise<string[]> {
-  const ai = getAI();
-  const prompt = `Minimalist, high-contrast, black and white line art doodles for ${topic} at ${gradeLevel} level. Clear edges, printable.`;
-  
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash-image',
-    contents: { parts: [{ text: prompt }] },
-    config: { imageConfig: { aspectRatio: "1:1" } },
-  });
-
-  const doodles: string[] = [];
-  if (response.candidates?.[0]?.content?.parts) {
-    for (const part of response.candidates[0].content.parts) {
-      if (part.inlineData) {
-        doodles.push(`data:${part.inlineData.mimeType};base64,${part.inlineData.data}`);
-      }
-    }
-  }
-  return doodles;
 }
