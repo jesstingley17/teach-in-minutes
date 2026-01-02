@@ -66,14 +66,15 @@ const App: React.FC = () => {
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   /**
-   * Proactive API Key Verification
+   * Refined API Key Verification
+   * Checks environment and platform status without blocking the UI.
    */
   const checkApiKeyStatus = async () => {
     setIsVerifyingKey(true);
-    // 1. Check if we have the environment variable
-    const hasEnvKey = !!process.env.API_KEY && process.env.API_KEY !== "";
+    // 1. Check if we have a non-empty environment variable
+    const hasEnvKey = !!process.env.API_KEY && process.env.API_KEY.length > 5;
     
-    // 2. Check the platform helper
+    // 2. Check the platform selection helper if available
     let hasSelectedKey = false;
     // @ts-ignore
     if (window.aistudio?.hasSelectedApiKey) {
@@ -81,11 +82,10 @@ const App: React.FC = () => {
         // @ts-ignore
         hasSelectedKey = await window.aistudio.hasSelectedApiKey();
       } catch (e) {
-        console.warn("API Selection check failed", e);
+        console.warn("API check bypassed", e);
       }
     }
 
-    // If both are missing, we must prompt the user
     const missing = !hasEnvKey && !hasSelectedKey;
     setApiKeyMissing(missing);
     setIsVerifyingKey(false);
@@ -109,8 +109,8 @@ const App: React.FC = () => {
     
     setAuthLoading(false);
 
-    // Periodically refresh connection status
-    const interval = setInterval(checkApiKeyStatus, 30000);
+    // Dynamic heartbeat for connection status
+    const interval = setInterval(checkApiKeyStatus, 15000);
     return () => clearInterval(interval);
   }, []);
 
@@ -120,13 +120,13 @@ const App: React.FC = () => {
       try {
         // @ts-ignore
         await window.aistudio.openSelectKey();
-        // Assume success to proceed and mitigate race conditions per instructions
+        // Proceed immediately per platform guidelines
         setApiKeyMissing(false);
       } catch (e) {
-        console.error("Failed to open key selection dialog", e);
+        console.error("Key Selector Error", e);
       }
     } else {
-      alert("AI selection services are currently unavailable in this context.");
+      alert("Please ensure your Gemini API Key is configured in the environment variables.");
     }
   };
 
@@ -151,18 +151,15 @@ const App: React.FC = () => {
       localStorage.setItem('institutional_branding', JSON.stringify(updatedBranding));
     } catch (err) {
       console.error("Upload Error:", err);
-      alert("Institutional asset processing failed. Please try again.");
+      alert("Institutional asset processing failed.");
     } finally {
       setUploadingLogo(false);
     }
   };
 
   const handleSmartMap = async () => {
-    const isReady = await checkApiKeyStatus();
-    if (!isReady) return;
-
     if (!formData.guidelineData && !formData.rawText) {
-      alert("Source material required. Please upload a file or paste text first.");
+      alert("Source material required.");
       return;
     }
     setIsScanning(true);
@@ -173,7 +170,7 @@ const App: React.FC = () => {
       });
 
       if (!lessons || lessons.length === 0) {
-        throw new Error("No distinct units found in this document. The material might be too short or too unstructured.");
+        throw new Error("No distinct units found.");
       }
 
       const mappedIntents = lessons.map((lesson, idx) => ({
@@ -192,8 +189,9 @@ const App: React.FC = () => {
       console.error("Scanning Error:", e);
       if (e.message?.includes("Requested entity was not found")) {
         setApiKeyMissing(true);
+        handleConnectApiKey();
       } else {
-        alert(`Curriculum scanning encountered an issue: ${e.message || "Unknown error"}. Please try providing more context or a clearer document structure.`);
+        alert(`Curriculum scanning encountered an issue: ${e.message || "Unknown error"}.`);
       }
     } finally {
       setIsScanning(false);
@@ -201,9 +199,6 @@ const App: React.FC = () => {
   };
 
   const handleGenerate = async () => {
-    const isReady = await checkApiKeyStatus();
-    if (!isReady) return;
-
     if (!formData.topic) { alert("Please provide a subject topic."); return; }
     if (suiteIntents.length === 0) { alert("The generation pipeline is empty."); return; }
     
@@ -236,8 +231,9 @@ const App: React.FC = () => {
       console.error("Generation Error:", e);
       if (e.message?.includes("Requested entity was not found")) {
         setApiKeyMissing(true);
+        handleConnectApiKey();
       } else {
-        alert(`The synthesis engine failed to materialize your suite: ${e.message || "Unknown synthesis error"}. Try simplifying the node requirements.`);
+        alert(`The synthesis engine failed: ${e.message || "Unknown error"}.`);
       }
     } finally { setLoading(false); }
   };
@@ -287,50 +283,13 @@ const App: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center bg-white">
       <div className="text-center space-y-4">
         <Loader2 className="w-12 h-12 animate-spin text-slate-900 mx-auto" />
-        <p className="font-black text-[10px] uppercase tracking-widest text-slate-400">Restoring Architect Profile</p>
+        <p className="font-black text-[10px] uppercase tracking-widest text-slate-400">Restoring Profile</p>
       </div>
     </div>
   );
 
   return (
     <div className="min-h-screen flex bg-white font-sans text-slate-900">
-      {/* Mandatory API Key Overlay - Highest Z-Index */}
-      {apiKeyMissing && (
-        <div className="fixed inset-0 z-[1000] bg-slate-900/95 backdrop-blur-2xl flex items-center justify-center p-6 animate-in fade-in duration-500">
-          <div className="bg-white w-full max-w-lg rounded-[3rem] p-12 text-center shadow-2xl border border-slate-100 animate-in zoom-in duration-300">
-            <div className="w-24 h-24 bg-blue-100 text-blue-600 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 shadow-inner">
-              <Key className="w-12 h-12" />
-            </div>
-            <h2 className="text-4xl font-black uppercase tracking-tighter italic mb-4">Connect AI Architect</h2>
-            <p className="text-slate-500 font-bold text-sm leading-relaxed mb-8">
-              To utilize the high-reasoning <span className="text-slate-900">Gemini 3 Pro</span> engine, you must select an API key from a paid Google Cloud project. 
-            </p>
-            <div className="bg-slate-50 p-6 rounded-3xl mb-8 border border-slate-100 flex items-start gap-4 text-left">
-              <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-1" />
-              <div>
-                <p className="text-[10px] font-black uppercase text-slate-400 mb-1">Configuration Required</p>
-                <a 
-                  href="https://ai.google.dev/gemini-api/docs/billing" 
-                  target="_blank" 
-                  rel="noreferrer"
-                  className="text-xs font-bold text-blue-600 underline hover:text-blue-700 decoration-2 underline-offset-4"
-                >
-                  View Billing Documentation & Setup
-                </a>
-              </div>
-            </div>
-            <button 
-              onClick={handleConnectApiKey}
-              className="w-full py-6 bg-slate-900 text-white rounded-[2rem] font-black text-xl uppercase tracking-widest shadow-2xl hover:bg-slate-800 active:scale-95 transition-all flex items-center justify-center gap-3"
-            >
-              <Sparkles className="w-6 h-6 text-yellow-400" />
-              Select Paid API Key
-            </button>
-            <p className="mt-6 text-[9px] font-black uppercase tracking-[0.2em] text-slate-300">Requires Google Cloud Billing-Enabled Key</p>
-          </div>
-        </div>
-      )}
-
       <aside className="w-72 border-r border-slate-100 hidden lg:flex flex-col fixed h-full z-20 no-print bg-white">
         <div className="p-8 border-b border-slate-50">
            <div className="flex items-center gap-3 mb-10 cursor-pointer" onClick={() => setMode(AppMode.ONBOARDING)}>
@@ -341,6 +300,7 @@ const App: React.FC = () => {
               <Plus className="w-4 h-4 inline mr-2" /> New Suite Node
            </button>
         </div>
+        
         <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
            <div className="flex justify-between items-center">
              <h3 className="text-[9px] font-black uppercase tracking-widest text-slate-400">Library Archive</h3>
@@ -362,9 +322,12 @@ const App: React.FC = () => {
            </div>
         </div>
         
-        {/* API Connection Status Bar */}
+        {/* Persistent API Connection Status Bar */}
         <div className="px-6 py-4 border-t border-slate-50">
-           <div className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${apiKeyMissing ? 'bg-red-50 border-red-100' : 'bg-green-50 border-green-100'}`}>
+           <button 
+             onClick={handleConnectApiKey}
+             className={`w-full flex items-center gap-3 p-3 rounded-2xl border transition-all text-left group ${apiKeyMissing ? 'bg-red-50 border-red-100 hover:bg-red-100' : 'bg-green-50 border-green-100 hover:bg-green-100'}`}
+           >
               <div className="relative">
                  {apiKeyMissing ? (
                    <WifiOff className="w-4 h-4 text-red-500" />
@@ -380,11 +343,12 @@ const App: React.FC = () => {
                    {isVerifyingKey ? 'Synchronizing...' : apiKeyMissing ? 'AI Core: Offline' : 'AI Core: Online'}
                  </p>
                  <p className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">
-                   {apiKeyMissing ? 'Action Required' : 'Gemini 3 Pro Ready'}
+                   {apiKeyMissing ? 'Tap to Connect' : 'Gemini Architect Active'}
                  </p>
               </div>
               {!apiKeyMissing && <Check className="w-3 h-3 text-green-400" />}
-           </div>
+              {apiKeyMissing && <ChevronRight className="w-3 h-3 text-red-300 group-hover:translate-x-1 transition-transform" />}
+           </button>
         </div>
 
         <div className="p-6 border-t border-slate-50 space-y-2">
@@ -626,10 +590,10 @@ const App: React.FC = () => {
                   </div>
                   <div className="p-12 bg-slate-900 rounded-[3rem] text-white flex flex-col items-center justify-center text-center shadow-2xl">
                     <Globe className="w-16 h-16 mb-8 text-blue-400" />
-                    <h3 className="text-2xl font-black uppercase italic">Global Identity Sync</h3>
-                    <p className="text-white/40 text-[10px] font-bold uppercase mt-4 mb-8 leading-relaxed">Changes to identity portal will automatically propagate to every unit materialized in your workspace archive.</p>
-                    <button onClick={handleConnectApiKey} className="flex items-center gap-2 px-6 py-3 bg-white/10 hover:bg-white/20 rounded-xl text-[10px] font-black uppercase transition-all">
-                      <Key className="w-4 h-4" /> Update AI API Key
+                    <h3 className="text-2xl font-black uppercase italic">Identity Sync</h3>
+                    <p className="text-white/40 text-[10px] font-bold uppercase mt-4 mb-8 leading-relaxed">Changes propagate to every unit materialized in your workspace archive.</p>
+                    <button onClick={handleConnectApiKey} className={`flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${apiKeyMissing ? 'bg-red-600 hover:bg-red-700' : 'bg-white/10 hover:bg-white/20'}`}>
+                      <Key className="w-4 h-4" /> {apiKeyMissing ? 'Connect AI Engine' : 'Manage API Connection'}
                     </button>
                   </div>
                </div>
