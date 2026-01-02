@@ -4,6 +4,12 @@ import { Worksheet, QuestionType, DocumentType, AudienceCategory, LearnerProfile
 
 const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
+export interface LessonStructure {
+  title: string;
+  summary: string;
+  suggestedQuestions: string[];
+}
+
 export interface GenerationOptions {
   topic: string; 
   educationalLevel: string;
@@ -13,6 +19,61 @@ export interface GenerationOptions {
   rawText?: string;
   fileData?: { data: string; mimeType: string };
   curriculumStandard?: CurriculumStandard;
+}
+
+/**
+ * Analyzes uploaded content to identify the underlying lesson structure.
+ */
+export async function analyzeCurriculum(source: { text?: string; file?: { data: string; mimeType: string } }): Promise<LessonStructure[]> {
+  const ai = getAI();
+  const parts: any[] = [];
+  
+  if (source.file) {
+    parts.push({ inlineData: { data: source.file.data, mimeType: source.file.mimeType } });
+  }
+
+  const prompt = `
+    Analyze this educational source material. 
+    Identify every distinct lesson, chapter, or module contained within.
+    For each lesson found, provide:
+    1. A clear title.
+    2. A brief 2-sentence instructional focus for that specific lesson.
+    3. A few key concepts that must be tested.
+    
+    Return the result as a JSON array of objects.
+  `;
+  
+  if (source.text) {
+    parts.push({ text: `Context: ${source.text}` });
+  }
+  parts.push({ text: prompt });
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-pro-preview",
+      contents: { parts },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              summary: { type: Type.STRING },
+              suggestedQuestions: { type: Type.ARRAY, items: { type: Type.STRING } }
+            },
+            required: ["title", "summary"]
+          }
+        }
+      }
+    });
+
+    return JSON.parse(response.text || '[]');
+  } catch (error) {
+    console.error("Curriculum Analysis Failed:", error);
+    return [];
+  }
 }
 
 export async function generateDoodles(topic: string, gradeLevel: string): Promise<string[]> {
@@ -67,10 +128,10 @@ export async function generateWorksheet(options: GenerationOptions): Promise<Wor
     
     COLLECTION GOAL:
     Generate EXACTLY ${containerIntents.length} unique educational instruments.
-    Even if instruments have the same DocumentType, they MUST vary in their specific content focus to provide a complete learning experience.
+    IMPORTANT: Each instrument is mapped to a specific sub-topic or lesson. You MUST strictly adhere to the 'specificInstructions' for each node to ensure no overlap and complete coverage of the curriculum.
     
     GLOBAL CONTEXT:
-    - TOPIC: ${topic}
+    - OVERALL TOPIC: ${topic}
     - LEVEL: ${educationalLevel}
     - AUDIENCE: ${audienceCategory}
     - LANGUAGE: ${language}
@@ -80,23 +141,21 @@ export async function generateWorksheet(options: GenerationOptions): Promise<Wor
     - EVERY fraction, equation, mathematical variable, or symbol MUST be wrapped in '$' delimiters.
     - Example: Instead of writing 2/8 or \\frac{2}{8}, you MUST write $\\frac{2}{8}$.
     - Example: Instead of x = 5, write $x = 5$.
-    - NEVER output raw LaTeX commands without the '$' wrappers.
     
     INSTRUMENT BLUEPRINTS:
     ${containerIntents.map((intent, i) => `
     [INSTRUMENT ${i+1}]
     - TYPE: ${intent.type}
+    - FOCUS: ${intent.specificInstructions || 'General coverage'}
     - DEPTH: ${intent.depth}
     - SCAFFOLDING: ${intent.profile}
     - LAYOUT: ${intent.layout}
     - STRUCTURE: ${Object.entries(intent.questionCounts).map(([t, c]) => `${c}x ${t}`).join(', ')}
-    - SPECIFIC GOAL: ${intent.specificInstructions || 'Generate comprehensive coverage of the topic.'}
     `).join('\n')}
 
     REQUIREMENTS:
-    1. If LAYOUT is LAID_TEACH, generate 'teachingContent' (3 paragraphs of rigorous instructional summary) and 'keyTakeaways' (5 punchy points).
-    2. Ensure pedagogical accuracy and age-appropriate vocabulary.
-    3. PRINT OPTIMIZATION: Density is preferred over whitespace.
+    1. If LAYOUT is LAID_TEACH, generate 'teachingContent' (3 paragraphs of instructional summary) and 'keyTakeaways'.
+    2. Maintain strict alignment between the instrument focus and the generated questions.
     
     OUTPUT: A JSON ARRAY of ${containerIntents.length} Worksheet objects.
   `;
