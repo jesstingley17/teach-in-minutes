@@ -248,14 +248,15 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
                 )}
 
                 {/* Section Specific Instructions */}
-                {q.sectionInstruction && (
+                {(q.sectionInstruction || isBuilderMode) && (
                    <div className="mb-4 flex items-center gap-2">
                       <div className="h-4 w-1 bg-yellow-400 rounded-full"></div>
                       <EditableField 
-                        value={q.sectionInstruction} 
+                        value={q.sectionInstruction || ""} 
                         onSave={v => updateQuestion(q.id, {sectionInstruction: v})} 
                         className="text-[11px] font-black uppercase tracking-widest text-slate-400 italic"
                         isMath={isMathMode}
+                        placeholder="Add specific instructions for this question section..."
                       />
                    </div>
                 )}
