@@ -36,11 +36,28 @@ export enum LearnerProfile {
   REMEDIAL = 'REMEDIAL'
 }
 
+export enum CurriculumStandard {
+  NONE = 'NONE',
+  COMMON_CORE = 'COMMON_CORE',
+  NGSS = 'NGSS',
+  IB = 'IB',
+  TEKS = 'TEKS',
+  GCSE = 'GCSE',
+  A_LEVEL = 'A_LEVEL',
+  CUSTOM = 'CUSTOM'
+}
+
+export interface GroundingSource {
+  title: string;
+  uri: string;
+}
+
 export interface Collection {
   id: string;
   name: string;
   description?: string;
   createdAt: number;
+  userId?: string;
 }
 
 export interface AssessmentBlueprint {
@@ -50,29 +67,14 @@ export interface AssessmentBlueprint {
   status: 'draft' | 'generating' | 'ready' | 'saved';
   worksheet?: Worksheet;
   suggestedDocType: DocumentType;
-  originModule?: string; // e.g., "Module 1"
-  originLesson?: string;  // e.g., "Lesson 2"
-}
-
-export interface CourseModule {
-  id: string;
-  title: string;
-  description: string;
-  topics: string[];
-  status: 'pending' | 'generated' | 'completed';
-}
-
-export interface Course {
-  id: string;
-  title: string;
-  code?: string;
-  description: string;
-  modules: CourseModule[];
+  originModule?: string;
+  originLesson?: string;
 }
 
 export interface Worksheet {
   id?: string;
-  collectionId?: string; // Link to a container
+  userId?: string;
+  collectionId?: string;
   courseId?: string;
   moduleId?: string;
   title: string;
@@ -80,6 +82,8 @@ export interface Worksheet {
   educationalLevel: string;
   audienceCategory?: AudienceCategory;
   learnerProfile?: LearnerProfile;
+  curriculumStandard?: CurriculumStandard;
+  standardReference?: string;
   documentType: DocumentType;
   institutionName?: string;
   courseCode?: string;
@@ -89,7 +93,8 @@ export interface Worksheet {
   questions: Question[];
   coloringImage?: string; 
   diagramImage?: string;  
-  backgroundImage?: string; // New field for custom theme/background
+  backgroundImage?: string;
+  groundingSources?: GroundingSource[];
   savedAt?: number;
 }
 
@@ -112,7 +117,7 @@ export enum ThemeType {
 export interface Question {
   id: string;
   type: QuestionType;
-  sectionInstruction?: string; // Grade-appropriate directive (e.g., "Look at the numbers and add them.")
+  sectionInstruction?: string;
   question: string;
   options?: string[];
   correctAnswer: string;
