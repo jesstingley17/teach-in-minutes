@@ -10,6 +10,8 @@ import {
   DraggableLineRow
 } from './HandwritingElements';
 import { LatexRenderer } from './LatexRenderer';
+import { generateSpeech } from '../services/geminiService';
+import { uploadFile, getPublicUrl, supabase } from '../services/supabaseClient';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { 
@@ -18,7 +20,7 @@ import {
   Settings, User, Landmark, Clock as ClockIcon,
   Hash, Scissors, HelpCircle, ImageIcon, ImagePlus,
   Palette, Printer, Loader2, Link as LinkIcon, ShieldCheck, 
-  BookMarked
+  BookMarked, Share2, Volume2, Copy
 } from 'lucide-react';
 
 interface WorksheetViewProps {
@@ -42,6 +44,9 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
   const [isBuilderMode, setIsBuilderMode] = useState(false);
   const [currentTheme, setCurrentTheme] = useState<ThemeType>(initialTheme);
   const [isExporting, setIsExporting] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [activeSpeechId, setActiveSpeechId] = useState<string | null>(null);
   const bgInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -53,16 +58,54 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
     if (onUpdate) onUpdate(newWs);
   };
 
-  const handleExportPDF = async () => {
+  const handleSpeech = async (id: string, text: string) => {
+    setActiveSpeechId(id);
+    await generateSpeech(text);
+    setActiveSpeechId(null);
+  };
+
+  const generatePdfBlob = async (): Promise<Blob> => {
     const element = document.getElementById('worksheet-content');
-    if (!element) return;
+    if (!element) throw new Error("Content not found");
+    const canvas = await html2canvas(element, { scale: 1.5, useCORS: true, backgroundColor: '#ffffff' });
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
+    return pdf.output('blob');
+  };
+
+  const handleShare = async () => {
+    setIsSharing(true);
+    try {
+      const blob = await generatePdfBlob();
+      const fileName = `${worksheet.id || 'temp'}-${Date.now()}.pdf`;
+      await uploadFile('worksheets-pdf', fileName, blob);
+      const url = getPublicUrl('worksheets-pdf', fileName);
+      setShareUrl(url);
+      
+      // Update worksheet record with share URL if it exists
+      if (worksheet.id) {
+        await supabase.from('worksheets').update({ share_url: url }).eq('id', worksheet.id);
+      }
+
+      navigator.clipboard.writeText(url);
+    } catch (error) {
+      console.error("Sharing failed", error);
+      alert("Failed to generate share link. Check storage permissions.");
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
+  const handleExportPDF = async () => {
     setIsExporting(true);
     try {
-      const canvas = await html2canvas(element, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
-      pdf.save(`${worksheet.title.replace(/\s+/g, '_')}_Worksheet.pdf`);
+      const blob = await generatePdfBlob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${worksheet.title.replace(/\s+/g, '_')}_Worksheet.pdf`;
+      link.click();
     } finally {
       setIsExporting(false);
     }
@@ -134,6 +177,14 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
       <div className="absolute -top-16 left-0 right-0 flex justify-between items-center no-print px-4 py-2 bg-white/80 backdrop-blur rounded-2xl border border-slate-200 shadow-sm z-[60]">
         <div className="flex gap-4 items-center">
           <button onClick={() => setIsBuilderMode(!isBuilderMode)} className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all ${isBuilderMode ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{isBuilderMode ? <Check className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}{isBuilderMode ? 'Finish' : 'Edit Mode'}</button>
+          
+          <div className="flex items-center gap-2 border-l pl-4 border-slate-200">
+            <button onClick={handleShare} disabled={isSharing} className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all shadow-md active:scale-95 ${isSharing ? 'bg-slate-100 text-slate-400' : 'bg-green-600 text-white hover:bg-green-700'}`}>
+              {isSharing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
+              <span className="text-[10px] uppercase tracking-widest font-black">{shareUrl ? 'Link Copied!' : 'Share to Supabase'}</span>
+            </button>
+          </div>
+
           <div className="flex items-center gap-2 border-l pl-4 border-slate-200">
             <Palette className="w-4 h-4 text-slate-400" />
             <select value={currentTheme} onChange={(e) => setCurrentTheme(e.target.value as ThemeType)} className="bg-transparent border-none text-[10px] font-black uppercase tracking-widest text-slate-600 focus:ring-0 cursor-pointer">
@@ -160,6 +211,21 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
           )}
         </div>
       </div>
+
+      {shareUrl && (
+        <div className="mb-6 p-4 bg-green-50 border-2 border-green-200 rounded-2xl flex items-center justify-between no-print animate-in slide-in-from-top-4 duration-300">
+           <div className="flex items-center gap-3">
+              <LinkIcon className="w-5 h-5 text-green-600" />
+              <div>
+                <p className="text-[10px] font-black uppercase text-green-700">Worksheet Published to Supabase</p>
+                <p className="text-xs font-medium text-green-900 truncate max-w-sm">{shareUrl}</p>
+              </div>
+           </div>
+           <button onClick={() => { navigator.clipboard.writeText(shareUrl); alert("Copied!"); }} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:bg-green-700 transition-all">
+             <Copy className="w-3.5 h-3.5" /> Copy Link
+           </button>
+        </div>
+      )}
 
       <div id="worksheet-content" className={`max-w-[210mm] mx-auto p-[15mm] shadow-2xl min-h-[297mm] relative transition-all duration-300 ${themeClasses.body} ${themeClasses.container} border-x border-slate-200 print:shadow-none overflow-hidden`}>
         {worksheet.backgroundImage && (
@@ -207,8 +273,17 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
             </div>
           </div>
 
-          <div className={`mb-12 p-6 border-l-4 ${themeClasses.accent} italic text-sm text-slate-700 ${themeClasses.itemBg}`}>
-            <EditableField multiline value={worksheet.topic || "Please read questions carefully."} onSave={(v: any) => handleUpdate({...worksheet, topic: v})} isMath={isMathMode} />
+          <div className={`mb-12 p-6 border-l-4 ${themeClasses.accent} italic text-sm text-slate-700 ${themeClasses.itemBg} flex justify-between items-start`}>
+            <div className="flex-1">
+              <EditableField multiline value={worksheet.topic || "Please read questions carefully."} onSave={(v: any) => handleUpdate({...worksheet, topic: v})} isMath={isMathMode} />
+            </div>
+            <button 
+              onClick={() => handleSpeech('intro', worksheet.topic || "Instruction section")}
+              className={`no-print p-2 rounded-xl transition-all ${activeSpeechId === 'intro' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-400 hover:text-blue-600'}`}
+              title="Listen to Instructions"
+            >
+              {activeSpeechId === 'intro' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Volume2 className="w-4 h-4" />}
+            </button>
           </div>
 
           <div className="space-y-16 relative">
@@ -220,8 +295,15 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
                       {idx + 1}
                     </div>
                     <div className="flex-1">
-                      <div className="mb-2">
+                      <div className="mb-2 flex items-center justify-between">
                         <EditableField value={q.sectionInstruction || ""} onSave={(v: any) => updateQuestion(q.id, {sectionInstruction: v})} className="text-[10px] font-black uppercase text-slate-400 tracking-widest italic" />
+                        <button 
+                          onClick={() => handleSpeech(q.id, q.question)}
+                          className={`no-print p-1.5 rounded-lg transition-all ${activeSpeechId === q.id ? 'bg-blue-600 text-white' : 'bg-slate-50 text-slate-300 hover:text-blue-500'}`}
+                          title="Read Question Aloud"
+                        >
+                          {activeSpeechId === q.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Volume2 className="w-3 h-3" />}
+                        </button>
                       </div>
                       <EditableField multiline value={q.question} onSave={(v: any) => updateQuestion(q.id, {question: v})} className={`text-xl font-bold text-slate-900 leading-tight block`} isMath={true} />
                     </div>
