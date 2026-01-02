@@ -19,21 +19,21 @@ export enum DocumentType {
   QUIZ = 'QUIZ'
 }
 
-export enum VariationLevel {
-  STRICT = 'STRICT', 
-  REPHRASE = 'REPHRASE', 
-  CREATIVE = 'CREATIVE'
+export enum AudienceCategory {
+  EARLY_YEARS = 'EARLY_YEARS',
+  PRIMARY = 'PRIMARY',
+  MIDDLE_SCHOOL = 'MIDDLE_SCHOOL',
+  HIGH_SCHOOL = 'HIGH_SCHOOL',
+  UNIVERSITY = 'UNIVERSITY',
+  PROFESSIONAL = 'PROFESSIONAL'
 }
 
-export interface Question {
-  id: string;
-  type: QuestionType;
-  question: string;
-  options?: string[];
-  correctAnswer: string;
-  explanation: string;
-  isChallenge: boolean;
-  points?: number;
+export enum LearnerProfile {
+  GENERAL = 'GENERAL',
+  SPECIAL_ED = 'SPECIAL_ED',
+  GIFTED = 'GIFTED',
+  ESL_ELL = 'ESL_ELL',
+  REMEDIAL = 'REMEDIAL'
 }
 
 export interface Worksheet {
@@ -41,6 +41,8 @@ export interface Worksheet {
   title: string;
   topic: string;
   educationalLevel: string;
+  audienceCategory?: AudienceCategory;
+  learnerProfile?: LearnerProfile;
   documentType: DocumentType;
   institutionName?: string;
   courseCode?: string;
@@ -66,8 +68,13 @@ export enum ThemeType {
   ACADEMIC = 'ACADEMIC'
 }
 
-export enum InputMethod {
-  PROMPT = 'PROMPT',
-  PASTE = 'PASTE',
-  UPLOAD = 'UPLOAD'
+export interface Question {
+  id: string;
+  type: QuestionType;
+  question: string;
+  options?: string[];
+  correctAnswer: string;
+  explanation: string;
+  isChallenge: boolean;
+  points?: number;
 }

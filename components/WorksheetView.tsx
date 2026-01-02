@@ -9,6 +9,7 @@ import {
   DoodlePalette,
   DraggableLineRow
 } from './HandwritingElements';
+import { LatexRenderer } from './LatexRenderer';
 import { 
   Trash2, Edit3, Check, X, FilePlus, Type, 
   CheckSquare, PlusCircle, ChevronUp, ChevronDown,
@@ -35,7 +36,6 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
 }) => {
   const [worksheet, setWorksheet] = useState<Worksheet>(initialWorksheet);
   const [isBuilderMode, setIsBuilderMode] = useState(false);
-  const [activeEditingId, setActiveEditingId] = useState<string | null>(null);
 
   useEffect(() => {
     setWorksheet(initialWorksheet);
@@ -80,15 +80,20 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
   };
 
   const isCreative = theme === ThemeType.CREATIVE;
-  const isPreschool = worksheet.educationalLevel.includes("Preschool");
 
-  const EditableField = ({ value, onSave, className, multiline = false, placeholder = "" }: { 
-    value: string; onSave: (v: string) => void; className?: string; multiline?: boolean; placeholder?: string 
+  const EditableField = ({ value, onSave, className, multiline = false, placeholder = "", isMath = false }: { 
+    value: string; onSave: (v: string) => void; className?: string; multiline?: boolean; placeholder?: string; isMath?: boolean
   }) => {
     const [local, setLocal] = useState(value);
     const [editing, setEditing] = useState(false);
 
-    if (!isBuilderMode) return <span className={className}>{value || placeholder}</span>;
+    if (!isBuilderMode) {
+      return isMath ? (
+        <LatexRenderer content={value || placeholder} className={className} />
+      ) : (
+        <span className={className}>{value || placeholder}</span>
+      );
+    }
 
     if (editing) {
       return multiline ? (
@@ -116,7 +121,7 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
         onClick={() => setEditing(true)} 
         className={`cursor-text hover:bg-slate-50 transition-colors p-1 rounded border border-transparent hover:border-slate-200 ${className} ${!value ? 'text-slate-300 italic' : ''}`}
       >
-        {value || placeholder}
+        {isMath ? <LatexRenderer content={value || placeholder} /> : (value || placeholder)}
       </span>
     );
   };
@@ -161,7 +166,6 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
           <div className="flex justify-between items-start mb-8">
             <div className="space-y-4 flex-1">
               <div className="flex items-center gap-4">
-                {/* FIXED: Replaced 'लैंडमार्क' with 'Landmark' component */}
                 <Landmark className="w-8 h-8 text-slate-900" />
                 <EditableField 
                   value={worksheet.institutionName || "NAME OF INSTITUTION"} 
@@ -214,6 +218,7 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
             multiline 
             value={worksheet.topic || "Please read all questions carefully and provide complete answers in the spaces provided."} 
             onSave={v => handleUpdate({...worksheet, topic: v})} 
+            isMath={isMathMode}
           />
         </div>
 
@@ -252,6 +257,7 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
                           value={q.question} 
                           onSave={v => updateQuestion(q.id, {question: v})} 
                           className={`text-xl font-bold text-slate-900 leading-tight block ${isMathMode ? 'font-mono' : ''}`} 
+                          isMath={isMathMode}
                         />
                       </div>
                    </div>
@@ -277,6 +283,7 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
                                updateQuestion(q.id, {options: newOpts});
                             }} 
                             className={`text-sm font-medium flex-1 ${showKey && opt === q.correctAnswer ? 'text-red-700 font-bold' : ''}`}
+                            isMath={isMathMode}
                           />
                         </div>
                       ))}
@@ -288,7 +295,9 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
                        {[...Array(3)].map((_, i) => (
                           <div key={i} className="border-b border-slate-200 h-10 flex items-end">
                              {showKey && i === 0 && (
-                                <span className="font-handwriting-body text-red-600 text-2xl ml-4 animate-in fade-in slide-in-from-left-2">{q.correctAnswer}</span>
+                                <span className="font-handwriting-body text-red-600 text-2xl ml-4 animate-in fade-in slide-in-from-left-2">
+                                  {isMathMode ? <LatexRenderer content={q.correctAnswer} /> : q.correctAnswer}
+                                </span>
                              )}
                           </div>
                        ))}
@@ -319,7 +328,7 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
                 {showKey && q.explanation && (
                   <div className="ml-14 mt-6 p-4 bg-slate-50 border-l-2 border-red-200 text-[11px] leading-relaxed text-slate-500 italic">
                     <span className="font-black uppercase tracking-widest text-red-400 mr-2">Rationale:</span>
-                    <EditableField multiline value={q.explanation} onSave={v => updateQuestion(q.id, {explanation: v})} />
+                    <EditableField multiline value={q.explanation} onSave={v => updateQuestion(q.id, {explanation: v})} isMath={isMathMode} />
                   </div>
                 )}
               </div>

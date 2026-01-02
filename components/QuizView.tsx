@@ -1,6 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { Worksheet, QuestionType, ThemeType } from '../types';
 import { MarkerHighlight } from './HandwritingElements';
+import { LatexRenderer } from './LatexRenderer';
 import { CheckCircle, XCircle, RefreshCw, BarChart3, Clock, AlertCircle, ArrowLeft } from 'lucide-react';
 
 interface QuizAttempt {
@@ -13,9 +15,10 @@ interface QuizViewProps {
   worksheet: Worksheet;
   theme: ThemeType;
   onExit: () => void;
+  isMathMode?: boolean;
 }
 
-export const QuizView: React.FC<QuizViewProps> = ({ worksheet, theme, onExit }) => {
+export const QuizView: React.FC<QuizViewProps> = ({ worksheet, theme, onExit, isMathMode = false }) => {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
   const [score, setScore] = useState(0);
@@ -202,7 +205,7 @@ export const QuizView: React.FC<QuizViewProps> = ({ worksheet, theme, onExit }) 
                 </span>
                 <div className="flex-1">
                   <h3 className={`text-xl sm:text-2xl font-bold leading-tight ${isCreative ? 'font-handwriting-body' : ''}`}>
-                    {q.question}
+                    {isMathMode ? <LatexRenderer content={q.question} /> : q.question}
                     {q.isChallenge && <span className="ml-3 inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-purple-100 text-purple-800 shadow-sm border border-purple-200">Challenge</span>}
                   </h3>
                 </div>
@@ -232,7 +235,9 @@ export const QuizView: React.FC<QuizViewProps> = ({ worksheet, theme, onExit }) 
                         }`}>
                           {answers[q.id] === opt && <div className="w-2.5 h-2.5 rounded-full bg-white shadow-sm" />}
                         </span>
-                        <span className={`text-lg transition-all ${answers[q.id] === opt ? 'font-black text-slate-900' : 'text-slate-600 font-medium'}`}>{opt}</span>
+                        <span className={`text-lg transition-all ${answers[q.id] === opt ? 'font-black text-slate-900' : 'text-slate-600 font-medium'}`}>
+                          {isMathMode ? <LatexRenderer content={opt} /> : opt}
+                        </span>
                       </label>
                     ))}
                   </div>
@@ -312,14 +317,16 @@ export const QuizView: React.FC<QuizViewProps> = ({ worksheet, theme, onExit }) 
 
                         <div className="bg-white/70 p-4 rounded-2xl border border-current/10 shadow-sm">
                           <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${isCorrect ? 'text-green-700/60' : 'text-red-700/60'}`}>Official Solution:</p>
-                          <p className="text-lg font-black">{q.correctAnswer}</p>
+                          <p className="text-lg font-black">
+                            {isMathMode ? <LatexRenderer content={q.correctAnswer} /> : q.correctAnswer}
+                          </p>
                         </div>
 
                         {q.explanation && (
                           <div className="pt-2">
                             <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-2">Academic Rationale & Context:</p>
                             <p className="text-sm leading-relaxed font-medium bg-white/30 p-4 rounded-xl border border-slate-100">
-                              {q.explanation}
+                              {isMathMode ? <LatexRenderer content={q.explanation} /> : q.explanation}
                             </p>
                           </div>
                         )}

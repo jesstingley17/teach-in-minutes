@@ -1,25 +1,21 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { Worksheet, QuestionType, ThemeType, VariationLevel, DocumentType } from "../types";
+import { Worksheet, QuestionType, ThemeType, DocumentType, AudienceCategory, LearnerProfile } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export interface GenerationOptions {
   topic: string; 
   customTitle?: string;
-  gradeLevel: string;
+  educationalLevel: string; // The specific year/grade
+  audienceCategory: AudienceCategory;
+  learnerProfile: LearnerProfile;
   difficulty: string;
   language: string;
   documentType: DocumentType;
   questionCounts: Record<string, number>;
-  variationLevels?: Record<string, VariationLevel>;
   rawText?: string;
   fileData?: { data: string; mimeType: string };
-  pageTarget?: number;
-  includeTracing?: boolean;
-  includeDiagram?: boolean;
-  diagramLabelType?: 'LABELED' | 'BLANK';
-  theme?: ThemeType;
   isMathMode?: boolean;
 }
 
@@ -60,45 +56,42 @@ export async function analyzeSourceMaterial(
 
 export async function generateWorksheet(options: GenerationOptions): Promise<Worksheet> {
   const { 
-    topic, customTitle, gradeLevel, difficulty, language, 
-    documentType, questionCounts, variationLevels = {},
-    rawText, fileData, theme = ThemeType.CLASSIC, isMathMode = false
+    topic, educationalLevel, audienceCategory, learnerProfile, 
+    difficulty, language, documentType, questionCounts, 
+    rawText, fileData, isMathMode = false
   } = options;
-
-  let diagramImageBase64 = '';
-  if (options.includeDiagram) {
-    const diagramPrompt = `Academic technical diagram for ${topic} at ${gradeLevel} level. Black and white scientific line art. Pure white background. Clear labels.`;
-    try {
-      const diagResponse = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
-        contents: { parts: [{ text: diagramPrompt }] }
-      });
-      for (const part of diagResponse.candidates[0].content.parts) {
-        if (part.inlineData) { diagramImageBase64 = `data:image/png;base64,${part.inlineData.data}`; break; }
-      }
-    } catch (e) {}
-  }
 
   const parts: any[] = [];
   if (fileData) parts.push({ inlineData: { data: fileData.data, mimeType: fileData.mimeType } });
 
   const promptText = `
-    ROLE: Senior Academic Examiner.
-    TASK: Generate a high-quality ${documentType} in ${language} for ${gradeLevel}.
+    ROLE: Senior Academic Designer & Subject Matter Expert.
+    TASK: Generate a ${documentType} in ${language}.
+    
+    TARGET AUDIENCE DETAILS:
+    - Main Category: ${audienceCategory}
+    - Specific Level: ${educationalLevel}
+    - Learner Profile: ${learnerProfile}
+    - Difficulty Target: ${difficulty}
+    
     TOPIC: ${topic}
-    DIFFICULTY: ${difficulty}
+    ${rawText ? `SOURCE MATERIAL: ${rawText}` : ''}
+
+    STRICT PEDAGOGICAL GUIDELINES:
+    1. Language Complexity: Adjust vocabulary and sentence structure strictly for ${audienceCategory} - ${educationalLevel}.
+    2. Differentiation: Since profile is ${learnerProfile}, ${
+      learnerProfile === LearnerProfile.SPECIAL_ED ? 'use chunked instructions, clear visual cues, and avoid cognitive overload.' : 
+      learnerProfile === LearnerProfile.GIFTED ? 'include complex interdisciplinary connections and higher-order thinking.' :
+      learnerProfile === LearnerProfile.ESL_ELL ? 'use high-frequency words, clear visual support contexts, and avoid idioms.' : 
+      'ensure grade-appropriate rigor.'
+    }
+    3. Content: ${isMathMode ? 'Use LaTeX ($...$ or $$...$$) for all math.' : 'Ensure academic accuracy.'}
+    4. Scoring: Assign appropriate points (0-100 scale) per question.
     
-    INSTRUCTIONS:
-    - Create exactly the requested number of questions.
-    - For EXAM type: Use formal, rigorous language. Include point values for each question.
-    - For HOMEWORK type: Use engaging but instructional language.
-    - Each question must have a 'correctAnswer' and a 'explanation' for the teacher key.
-    - ${isMathMode ? 'Use LaTeX-style notation for math expressions.' : ''}
-    
-    COUNTS:
+    QUESTION COUNTS:
     ${Object.entries(questionCounts).map(([t, c]) => `- ${t}: ${c}`).join('\n')}
 
-    FORMAT: Return a JSON object matching the worksheet structure.
+    FORMAT: Return JSON.
   `;
   
   parts.push({ text: promptText });
@@ -139,31 +132,16 @@ export async function generateWorksheet(options: GenerationOptions): Promise<Wor
 
     const worksheet = JSON.parse(response.text || '{}') as Worksheet;
     worksheet.documentType = documentType;
-    worksheet.diagramImage = diagramImageBase64;
+    worksheet.audienceCategory = audienceCategory;
+    worksheet.learnerProfile = learnerProfile;
     return worksheet;
   } catch (error) {
     throw error;
   }
 }
 
-export async function refineSourceText(text: string): Promise<string> {
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: `Clean and refine this educational text for question generation: "${text}"`,
-  });
-  return response.text || text;
-}
-
-export async function generateTopicScopeSuggestion(title: string, ageGroup: string): Promise<string> {
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: `Suggest a 1-sentence learning objective for a worksheet titled "${title}" for ${ageGroup}.`,
-  });
-  return response.text || "";
-}
-
 export async function generateDoodles(topic: string, gradeLevel: string): Promise<string[]> {
-  const prompt = `4 isolated black and white hand-drawn line art doodles about ${topic}. Pure white background. No text.`;
+  const prompt = `4 isolated black and white hand-drawn line art doodles about ${topic} for ${gradeLevel}. Pure white background. No text.`;
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',

@@ -1,20 +1,37 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { AppMode, Worksheet, ThemeType, QuestionType, VariationLevel, DocumentType } from './types';
-import { generateWorksheet, generateTopicScopeSuggestion, analyzeSourceMaterial, refineSourceText } from './services/geminiService';
+import { AppMode, Worksheet, ThemeType, QuestionType, DocumentType, AudienceCategory, LearnerProfile } from './types';
+import { generateWorksheet, analyzeSourceMaterial } from './services/geminiService';
 import { WorksheetView } from './components/WorksheetView';
 import { QuizView } from './components/QuizView';
 import { MarkerHighlight } from './components/HandwritingElements';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { 
-  Sparkles, FileText, PlayCircle, GraduationCap, 
+  FileText, PlayCircle, GraduationCap, 
   Loader2, Upload, ArrowRight, ArrowLeft, 
-  CheckCircle2, Save, Trash2, History, Plus, 
-  Minus, Camera, FileJson, Wand2, Printer, 
-  Target, Globe, BarChart, FileStack, Layout,
-  Layers, Award, BookOpen, Clock
+  CheckCircle2, Save, Plus, 
+  Minus, Wand2, Printer, 
+  Globe, FileStack, Sigma, 
+  Baby, School, Building2, UserCircle, 
+  Zap, Brain, Languages, Users
 } from 'lucide-react';
+
+const CATEGORIES = [
+  { id: AudienceCategory.EARLY_YEARS, label: 'Early Years', icon: Baby, sub: ['Pre-K', 'Kindergarten'] },
+  { id: AudienceCategory.PRIMARY, label: 'Primary', icon: School, sub: ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5'] },
+  { id: AudienceCategory.MIDDLE_SCHOOL, label: 'Middle', icon: School, sub: ['Grade 6', 'Grade 7', 'Grade 8'] },
+  { id: AudienceCategory.HIGH_SCHOOL, label: 'High School', icon: GraduationCap, sub: ['Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'] },
+  { id: AudienceCategory.UNIVERSITY, label: 'Higher Ed', icon: Building2, sub: ['Undergrad (Intro)', 'Undergrad (Advanced)', 'Postgrad', 'PhD Research'] },
+  { id: AudienceCategory.PROFESSIONAL, label: 'Professional', icon: UserCircle, sub: ['Corporate Training', 'Certification', 'Technical Spec'] }
+];
+
+const PROFILES = [
+  { id: LearnerProfile.GENERAL, label: 'General Ed', icon: Users, color: 'text-slate-500' },
+  { id: LearnerProfile.SPECIAL_ED, label: 'IEP / SpEd', icon: Brain, color: 'text-purple-500' },
+  { id: LearnerProfile.GIFTED, label: 'Gifted/Talented', icon: Zap, color: 'text-yellow-500' },
+  { id: LearnerProfile.ESL_ELL, label: 'ESL / ELL', icon: Languages, color: 'text-blue-500' }
+];
 
 const WorksheetSkeleton: React.FC = () => (
   <div className="w-full max-w-4xl mx-auto bg-white p-[15mm] shadow-2xl min-h-[297mm] relative border border-slate-100">
@@ -62,7 +79,9 @@ const App: React.FC = () => {
   const [formData, setFormData] = useState({
     topic: '',
     customTitle: '',
-    educationalLevel: 'University / College',
+    audienceCategory: AudienceCategory.HIGH_SCHOOL,
+    educationalLevel: 'Grade 10',
+    learnerProfile: LearnerProfile.GENERAL,
     difficulty: 'Medium',
     language: 'English',
     documentType: DocumentType.EXAM,
@@ -71,7 +90,6 @@ const App: React.FC = () => {
       [QuestionType.MCQ]: 3,
       [QuestionType.TF]: 2,
       [QuestionType.SHORT_ANSWER]: 2,
-      [QuestionType.SENTENCE_DRILL]: 0
     }
   });
 
@@ -96,7 +114,6 @@ const App: React.FC = () => {
       const result = await generateWorksheet({
         ...formData,
         questionCounts: formData.questionCounts as Record<string, number>,
-        theme: ThemeType.ACADEMIC,
         isMathMode
       });
       setWorksheet({ ...result, id: Date.now().toString(), savedAt: Date.now() });
@@ -133,9 +150,10 @@ const App: React.FC = () => {
     }));
   };
 
+  const activeCategory = CATEGORIES.find(c => c.id === formData.audienceCategory);
+
   return (
     <div className="min-h-screen flex bg-slate-100">
-      {/* Sidebar */}
       <aside className="w-80 bg-white border-r border-slate-200 hidden lg:flex flex-col fixed h-full z-20 no-print">
         <div className="p-8 border-b border-slate-100">
            <div className="flex items-center gap-3">
@@ -151,17 +169,10 @@ const App: React.FC = () => {
         
         <div className="flex-1 overflow-y-auto p-6 space-y-8">
            <nav className="space-y-2">
-              <button 
-                onClick={() => { setMode(AppMode.GENERATOR); setCurrentStep(1); }}
-                className={`w-full flex items-center gap-3 p-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${mode === AppMode.GENERATOR ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}
-              >
+              <button onClick={() => { setMode(AppMode.GENERATOR); setCurrentStep(1); }} className={`w-full flex items-center gap-3 p-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${mode === AppMode.GENERATOR ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
                  <Plus className="w-4 h-4" /> New Session
               </button>
-              <button 
-                onClick={() => worksheet && setMode(AppMode.WORKSHEET)}
-                disabled={!worksheet}
-                className={`w-full flex items-center gap-3 p-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${mode === AppMode.WORKSHEET ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50 disabled:opacity-30'}`}
-              >
+              <button onClick={() => worksheet && setMode(AppMode.WORKSHEET)} disabled={!worksheet} className={`w-full flex items-center gap-3 p-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${mode === AppMode.WORKSHEET ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50 disabled:opacity-30'}`}>
                  <FileText className="w-4 h-4" /> Active Editor
               </button>
            </nav>
@@ -175,27 +186,17 @@ const App: React.FC = () => {
                        <div className="text-[9px] font-bold text-slate-400 mt-1 uppercase">{sw.documentType} • {sw.topic.slice(0, 20)}...</div>
                     </div>
                  ))}
-                 {savedWorksheets.length === 0 && <div className="text-center py-8 text-[10px] font-bold text-slate-300 uppercase italic">No saved documents</div>}
               </div>
            </div>
         </div>
-        
-        {worksheet && (
-          <div className="p-6 border-t border-slate-100">
-             <button onClick={() => handleSave(worksheet)} className="w-full py-4 bg-yellow-400 text-yellow-900 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-yellow-500 transition-all shadow-xl active:scale-95">
-                Save to Library
-             </button>
-          </div>
-        )}
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 lg:ml-80 min-h-screen">
         <div className="max-w-6xl mx-auto p-8">
            {loading ? <WorksheetSkeleton /> : (
              <>
                {mode === AppMode.GENERATOR && (
-                 <div className="max-w-3xl mx-auto py-12">
+                 <div className="max-w-4xl mx-auto py-12">
                    <header className="text-center mb-16">
                       <h2 className="text-6xl font-black tracking-tighter text-slate-900 mb-4 uppercase">
                         Generate <MarkerHighlight>Excellence</MarkerHighlight>
@@ -211,34 +212,77 @@ const App: React.FC = () => {
                       </div>
                    </header>
 
-                   <div className="bg-white rounded-[3rem] shadow-2xl border border-slate-100 overflow-hidden flex flex-col min-h-[500px]">
+                   <div className="bg-white rounded-[3rem] shadow-2xl border border-slate-100 overflow-hidden flex flex-col min-h-[600px]">
                       <div className="p-12 flex-1">
                         {currentStep === 1 && (
-                          <div className="animate-in slide-in-from-right duration-500 h-full flex flex-col justify-center gap-12">
-                             <div className="space-y-8">
-                                <div className="grid grid-cols-2 gap-8">
-                                   <div className="space-y-4">
-                                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2"><Globe className="w-3 h-3" /> Language</label>
-                                      <select className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-slate-700 focus:border-slate-900 focus:bg-white outline-none" value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}>
-                                         <option>English</option><option>Spanish</option><option>French</option><option>German</option>
-                                      </select>
-                                   </div>
-                                   <div className="space-y-4">
-                                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2"><FileStack className="w-3 h-3" /> Document Type</label>
-                                      <select className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-slate-700 focus:border-slate-900 focus:bg-white outline-none" value={formData.documentType} onChange={e => setFormData({...formData, documentType: e.target.value as DocumentType})}>
-                                         {Object.values(DocumentType).map(t => <option key={t} value={t}>{t}</option>)}
-                                      </select>
-                                   </div>
+                          <div className="animate-in slide-in-from-right duration-500 space-y-12">
+                             <section>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 block">1. Select Learner Developmental Stage</label>
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                   {CATEGORIES.map(cat => (
+                                     <button 
+                                       key={cat.id}
+                                       onClick={() => setFormData({ ...formData, audienceCategory: cat.id, educationalLevel: cat.sub[0] })}
+                                       className={`p-6 rounded-3xl border-2 transition-all flex flex-col items-center gap-3 group ${formData.audienceCategory === cat.id ? 'bg-slate-900 border-slate-900 text-white shadow-xl' : 'bg-slate-50 border-slate-100 hover:border-slate-300 text-slate-600'}`}
+                                     >
+                                        <cat.icon className={`w-8 h-8 ${formData.audienceCategory === cat.id ? 'text-white' : 'text-slate-400'}`} />
+                                        <span className="font-black text-[10px] uppercase tracking-widest">{cat.label}</span>
+                                     </button>
+                                   ))}
                                 </div>
-                                <div className="space-y-4">
-                                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2"><GraduationCap className="w-3 h-3" /> Target Audience</label>
-                                   <select className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-slate-700 focus:border-slate-900 focus:bg-white outline-none" value={formData.educationalLevel} onChange={e => setFormData({...formData, educationalLevel: e.target.value})}>
-                                      <option>University / College</option>
-                                      <option>Grade 12 (Senior)</option>
-                                      <option>Professional Track</option>
-                                      <option>Preschool (Ages 3-5)</option>
+                             </section>
+
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                                <section className="animate-in fade-in duration-700">
+                                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 block">2. Exact Level / Grade</label>
+                                   <select 
+                                     className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-slate-700 outline-none focus:border-slate-900"
+                                     value={formData.educationalLevel}
+                                     onChange={(e) => setFormData({...formData, educationalLevel: e.target.value})}
+                                   >
+                                      {activeCategory?.sub.map(s => <option key={s} value={s}>{s}</option>)}
                                    </select>
+                                </section>
+
+                                <section>
+                                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 block">3. Document Settings</label>
+                                   <div className="space-y-4">
+                                      <div className="flex gap-4">
+                                         <select className="flex-1 p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-xs text-slate-700 outline-none" value={formData.documentType} onChange={e => setFormData({...formData, documentType: e.target.value as DocumentType})}>
+                                            {Object.values(DocumentType).map(t => <option key={t} value={t}>{t}</option>)}
+                                         </select>
+                                         <select className="flex-1 p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-xs text-slate-700 outline-none" value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}>
+                                            <option>English</option><option>Spanish</option><option>French</option><option>German</option>
+                                         </select>
+                                      </div>
+                                   </div>
+                                </section>
+                             </div>
+
+                             <section>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 block">4. Learner Profile & Context</label>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                   {PROFILES.map(prof => (
+                                      <button 
+                                        key={prof.id}
+                                        onClick={() => setFormData({ ...formData, learnerProfile: prof.id })}
+                                        className={`p-4 rounded-2xl border-2 transition-all flex items-center gap-3 ${formData.learnerProfile === prof.id ? 'bg-white border-slate-900 ring-4 ring-slate-100' : 'bg-slate-50 border-slate-100 hover:border-slate-200'}`}
+                                      >
+                                         <prof.icon className={`w-5 h-5 ${prof.color}`} />
+                                         <span className="font-black text-[9px] uppercase tracking-widest text-slate-700">{prof.label}</span>
+                                      </button>
+                                   ))}
                                 </div>
+                             </section>
+
+                             <div className="p-4 bg-blue-50/50 border-2 border-blue-100 rounded-2xl flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                   <Sigma className="w-5 h-5 text-blue-600" />
+                                   <span className="font-black text-[10px] uppercase tracking-widest text-blue-900">Enable Math Mode (LaTeX Rendering)</span>
+                                </div>
+                                <button onClick={() => setIsMathMode(!isMathMode)} className={`w-14 h-8 rounded-full transition-all relative ${isMathMode ? 'bg-blue-600' : 'bg-slate-200'}`}>
+                                   <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all shadow-sm ${isMathMode ? 'left-7' : 'left-1'}`} />
+                                </button>
                              </div>
                           </div>
                         )}
@@ -250,10 +294,6 @@ const App: React.FC = () => {
                                    <Upload className="w-8 h-8 text-blue-500 mb-2" />
                                    <span className="font-black text-[10px] uppercase tracking-widest">Upload Source</span>
                                    <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
-                                </button>
-                                <button className="flex-1 p-6 bg-white rounded-xl shadow-sm border border-slate-200 text-center hover:border-slate-400 transition-all flex flex-col items-center opacity-40 cursor-not-allowed">
-                                   <Camera className="w-8 h-8 text-slate-400 mb-2" />
-                                   <span className="font-black text-[10px] uppercase tracking-widest">Live Scan</span>
                                 </button>
                              </div>
                              <div className="relative">
@@ -288,10 +328,7 @@ const App: React.FC = () => {
                                    </div>
                                 </div>
                                 
-                                <button 
-                                  onClick={handleGenerate}
-                                  className="w-full py-6 bg-slate-900 text-white rounded-[2rem] font-black text-xl uppercase tracking-widest hover:bg-slate-800 transition-all shadow-2xl active:scale-95 flex items-center justify-center gap-4 mt-8"
-                                >
+                                <button onClick={handleGenerate} className="w-full py-6 bg-slate-900 text-white rounded-[2rem] font-black text-xl uppercase tracking-widest hover:bg-slate-800 transition-all shadow-2xl active:scale-95 flex items-center justify-center gap-4 mt-8">
                                    <Wand2 className="w-6 h-6 text-yellow-400" /> Construct Assessment
                                 </button>
                              </div>
@@ -313,19 +350,9 @@ const App: React.FC = () => {
 
                {mode === AppMode.WORKSHEET && worksheet && (
                  <div className="py-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                    <WorksheetView 
-                      worksheet={worksheet} 
-                      theme={ThemeType.ACADEMIC} 
-                      showKey={showTeacherKey} 
-                      isMathMode={isMathMode} 
-                      onUpdate={(newWs) => setWorksheet(newWs)}
-                    />
-                    
+                    <WorksheetView worksheet={worksheet} theme={ThemeType.ACADEMIC} showKey={showTeacherKey} isMathMode={isMathMode} onUpdate={(newWs) => setWorksheet(newWs)} />
                     <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-3 bg-white/80 backdrop-blur-md p-3 rounded-3xl shadow-2xl border border-slate-200 z-50 no-print">
-                       <button 
-                         onClick={() => setShowTeacherKey(!showTeacherKey)}
-                         className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all ${showTeacherKey ? 'bg-red-600 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}
-                       >
+                       <button onClick={() => setShowTeacherKey(!showTeacherKey)} className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all ${showTeacherKey ? 'bg-red-600 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}>
                           {showTeacherKey ? 'Hide Key' : 'Show Key'}
                        </button>
                        <button onClick={() => setMode(AppMode.QUIZ)} className="px-6 py-3 bg-purple-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-lg">
@@ -351,11 +378,7 @@ const App: React.FC = () => {
                )}
 
                {mode === AppMode.QUIZ && worksheet && (
-                  <QuizView 
-                    worksheet={worksheet} 
-                    theme={ThemeType.ACADEMIC} 
-                    onExit={() => setMode(AppMode.WORKSHEET)} 
-                  />
+                  <QuizView worksheet={worksheet} theme={ThemeType.ACADEMIC} onExit={() => setMode(AppMode.WORKSHEET)} isMathMode={isMathMode} />
                )}
              </>
            )}
