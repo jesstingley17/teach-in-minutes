@@ -1,16 +1,14 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { AppMode, Worksheet, ThemeType, QuestionType, DocumentType, AudienceCategory, LearnerProfile, CurriculumStandard, BrandingConfig } from './types';
+import { AppMode, Worksheet, ThemeType, QuestionType, DocumentType, AudienceCategory, LearnerProfile, CurriculumStandard, BrandingConfig, LayoutStyle, AestheticMode } from './types';
 import { generateWorksheet } from './services/geminiService';
-import { supabase, isSupabaseConfigured } from './services/supabaseClient';
 import { WorksheetView } from './components/WorksheetView';
 import { 
-  GraduationCap, Loader2, ArrowRight, ArrowLeft, 
-  Plus, Sparkles, CloudUpload, FileText,
-  BookOpen, LayoutGrid, ShieldCheck, Key, ExternalLink, AlertTriangle,
-  Layers, Lock, XCircle, Database, UserCheck, Briefcase, ChevronRight,
-  Settings, Globe, Palette, User, Building, Library, Layers3, Eye,
-  Languages, BrainCircuit, Star, Zap, Construction, Target, Microscope, PenTool
+  GraduationCap, Loader2, Plus, Sparkles, CloudUpload, 
+  BookOpen, ShieldCheck, XCircle, Library, Eye,
+  Languages, BrainCircuit, Star, Zap, Construction, Target,
+  Settings, Layers, ChevronRight, Layout, Palette, Trash2, ArrowLeft,
+  Glasses, Award, Flame, UserCog
 } from 'lucide-react';
 
 const DEFAULT_BRANDING: BrandingConfig = {
@@ -28,66 +26,42 @@ const App: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
-  const [hasApiKey, setHasApiKey] = useState(false);
 
   const [mode, setMode] = useState<AppMode>(AppMode.ONBOARDING);
-  const [currentStep, setCurrentStep] = useState<number>(1);
   const [worksheet, setWorksheet] = useState<Worksheet | null>(null);
   const [currentBulkSet, setCurrentBulkSet] = useState<Worksheet[]>([]);
   const [savedWorksheets, setSavedWorksheets] = useState<Worksheet[]>([]);
   const [loading, setLoading] = useState(false);
-  const [isMathMode, setIsMathMode] = useState(true);
   const [showTeacherKey, setShowTeacherKey] = useState(false);
-  const [isBulkMode, setIsBulkMode] = useState(true);
-  const [bulkCount, setBulkCount] = useState(3);
   
   const [branding, setBranding] = useState<BrandingConfig>(DEFAULT_BRANDING);
   
+  // New: Suite Definition
+  const [suiteIntents, setSuiteIntents] = useState<{type: DocumentType, profile: LearnerProfile, layout: LayoutStyle}[]>([
+    { type: DocumentType.HOMEWORK, profile: LearnerProfile.GENERAL, layout: LayoutStyle.LAID_TEACH }
+  ]);
+
   const [formData, setFormData] = useState({
     topic: '',
     lessonTitle: '',
     moduleTitle: '',
     audienceCategory: AudienceCategory.UNIVERSITY,
     educationalLevel: 'Degree Level',
-    learnerProfile: LearnerProfile.GENERAL,
-    curriculumStandard: CurriculumStandard.CUSTOM,
     difficulty: 'Standard Application',
     language: 'English',
-    documentType: DocumentType.ASSIGNMENT,
     rawText: '',
-    questionCounts: { [QuestionType.MCQ]: 5, [QuestionType.SHORT_ANSWER]: 3 } as Record<string, number>,
-    fileData: null as { data: string; mimeType: string; name: string } | null,
     guidelineData: null as { data: string; mimeType: string; name: string } | null
   });
 
   const guidelineInputRef = useRef<HTMLInputElement>(null);
-  const brandingLogoRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const checkApiKey = async () => {
-      if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
-        setHasApiKey(await window.aistudio.hasSelectedApiKey());
-      } else {
-        setHasApiKey(true); 
-      }
-    };
-    checkApiKey();
-
     const savedBranding = localStorage.getItem('institutional_branding');
     if (savedBranding) setBranding(JSON.parse(savedBranding));
-
-    if (isSupabaseConfigured) {
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session) { setUser(session.user); setIsGuest(false); }
-        setAuthLoading(false);
-      });
-    } else {
-      const localSession = localStorage.getItem('local_user_session');
-      if (localSession) { setUser(JSON.parse(localSession)); }
-      setAuthLoading(false);
-    }
-    
+    const localSession = localStorage.getItem('local_user_session');
+    if (localSession) setUser(JSON.parse(localSession));
     if (localStorage.getItem('isGuest') === 'true') setIsGuest(true);
+    setAuthLoading(false);
   }, []);
 
   useEffect(() => { if (user || isGuest) fetchUserContent(); }, [user, isGuest]);
@@ -100,96 +74,54 @@ const App: React.FC = () => {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    setAuthError(null);
-
-    // Hardcoded credentials for jtingley
     if (email === 'jtingley@anchorchartpro.com' && password === 'Password123') {
-      const sessionUser = { email, id: 'jtingley-pro-session' };
-      setUser(sessionUser);
-      setIsGuest(false);
-      localStorage.setItem('local_user_session', JSON.stringify(sessionUser));
-      setMode(AppMode.ONBOARDING);
-    } else {
-      setAuthError("Invalid faculty credentials. Access denied.");
-    }
-  };
-
-  const handleSaveBranding = () => {
-    localStorage.setItem('institutional_branding', JSON.stringify(branding));
-    setMode(AppMode.ONBOARDING);
+      const u = { email, id: 'j-pro' };
+      setUser(u);
+      localStorage.setItem('local_user_session', JSON.stringify(u));
+    } else setAuthError("Invalid credentials.");
   };
 
   const handleGenerate = async () => {
     setLoading(true);
     try {
-      const result = await generateWorksheet({ 
+      const results = await generateWorksheet({ 
         ...formData, 
-        rawText: `STUDENT PROFILE: ${formData.learnerProfile}. ${formData.rawText}`,
-        fileData: formData.guidelineData || undefined,
-        bulkCount: isBulkMode ? bulkCount : 1 
+        containerIntents: suiteIntents,
+        fileData: formData.guidelineData || undefined 
       });
 
-      const results = Array.isArray(result) ? result : [result];
-      const newSheets = results.map((ws, i) => ({
+      const processed = results.map((ws, i) => ({
         ...ws,
         id: Math.random().toString(36).substr(2, 9),
-        lessonTitle: formData.lessonTitle || 'Untitled Lesson',
-        moduleTitle: formData.moduleTitle || 'Uncategorized Module',
-        institutionName: branding.institutionName,
+        moduleTitle: formData.moduleTitle,
+        lessonTitle: formData.lessonTitle,
         instructorName: branding.instructorName,
+        institutionName: branding.institutionName,
         logoUrl: branding.logoUrl,
-        savedAt: Date.now() + i,
-        visualMetadata: { ...ws.visualMetadata, primaryColor: branding.primaryColor }
+        savedAt: Date.now() + i
       }));
 
       const prefix = user?.email || 'guest';
       const local = JSON.parse(localStorage.getItem(`archive_${prefix}`) || '[]');
-      localStorage.setItem(`archive_${prefix}`, JSON.stringify([...newSheets, ...local].slice(0, 50)));
+      localStorage.setItem(`archive_${prefix}`, JSON.stringify([...processed, ...local].slice(0, 50)));
 
-      setSavedWorksheets(prev => [...newSheets, ...prev]);
-      if (isBulkMode) {
-        setCurrentBulkSet(newSheets);
-        setMode(AppMode.BULK_REVIEW);
-      } else {
-        setWorksheet(newSheets[0]);
-        setMode(AppMode.WORKSHEET);
-      }
+      setSavedWorksheets(prev => [...processed, ...prev]);
+      setCurrentBulkSet(processed);
+      setMode(AppMode.BULK_REVIEW);
     } catch (e: any) { 
-      alert("Materialization failed: " + e.message);
+      alert(e.message);
     } finally { setLoading(false); }
   };
 
-  const ScaffoldingTile = ({ icon: Icon, label, value, active, onClick }: any) => (
-    <button 
-      onClick={() => onClick(value)}
-      className={`relative p-6 rounded-[2.5rem] border-2 transition-all flex flex-col items-center text-center gap-4 group ${
-        active ? 'border-slate-900 bg-slate-900 text-white shadow-2xl scale-105' : 'border-slate-100 hover:border-slate-300 bg-white'
-      }`}
-    >
-      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-colors ${active ? 'bg-white/10' : 'bg-slate-50'}`}>
-        <Icon className={`w-6 h-6 ${active ? 'text-white' : 'text-slate-400 group-hover:text-slate-900'}`} />
-      </div>
-      <span className="text-[10px] font-black uppercase tracking-widest">{label}</span>
-      {active && <div className="absolute top-4 right-4"><Sparkles className="w-4 h-4 text-yellow-400" /></div>}
-    </button>
-  );
+  const addContainer = () => setSuiteIntents([...suiteIntents, { type: DocumentType.QUIZ, profile: LearnerProfile.GENERAL, layout: LayoutStyle.CLASSIC }]);
+  const removeContainer = (idx: number) => setSuiteIntents(suiteIntents.filter((_, i) => i !== idx));
+  const updateIntent = (idx: number, updates: any) => {
+    const n = [...suiteIntents];
+    n[idx] = { ...n[idx], ...updates };
+    setSuiteIntents(n);
+  };
 
-  const IntentLevel = ({ label, desc, value, active, onClick }: any) => (
-    <button 
-      onClick={() => onClick(value)}
-      className={`p-6 rounded-3xl border-2 text-left transition-all ${
-        active ? 'border-slate-900 bg-slate-50' : 'border-slate-100 hover:bg-slate-50'
-      }`}
-    >
-      <div className="flex justify-between items-center mb-2">
-        <span className={`text-[10px] font-black uppercase tracking-widest ${active ? 'text-slate-900' : 'text-slate-400'}`}>{label}</span>
-        {active && <div className="w-2 h-2 rounded-full bg-slate-900"></div>}
-      </div>
-      <p className="text-xs font-bold text-slate-600 leading-tight">{desc}</p>
-    </button>
-  );
-
-  if (authLoading) return <div className="min-h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin text-slate-900 w-10 h-10" /></div>;
+  if (authLoading) return <div className="min-h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin" /></div>;
 
   if (!user && !isGuest) return (
     <div className="min-h-screen flex bg-slate-50 font-sans">
@@ -197,29 +129,14 @@ const App: React.FC = () => {
         <div className="max-w-lg text-center">
           <GraduationCap className="w-16 h-16 text-blue-500 mx-auto mb-8" />
           <h1 className="text-7xl font-black text-white uppercase italic mb-6">Blueprint<span className="text-blue-500 not-italic">Pro</span></h1>
-          <p className="text-slate-400 text-xl font-medium">Professional grade assessment architect for all educational tiers.</p>
+          <p className="text-slate-400 text-xl font-medium">Architecture for the modern classroom.</p>
         </div>
       </div>
       <div className="w-full lg:w-[500px] bg-white p-12 flex flex-col justify-center">
         <form onSubmit={handleLogin} className="space-y-6">
           <h2 className="text-4xl font-black uppercase tracking-tighter mb-8">Faculty Portal</h2>
-          {authError && <div className="p-4 bg-red-50 text-red-600 rounded-xl text-xs font-bold border border-red-100 animate-bounce">{authError}</div>}
-          <input 
-            required 
-            type="email" 
-            value={email} 
-            onChange={e => setEmail(e.target.value)} 
-            placeholder="Email / Faculty ID" 
-            className="w-full p-4 bg-slate-50 border-2 rounded-xl outline-none focus:border-slate-900 font-bold" 
-          />
-          <input 
-            required 
-            type="password" 
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            placeholder="Passkey" 
-            className="w-full p-4 bg-slate-50 border-2 rounded-xl outline-none focus:border-slate-900 font-bold" 
-          />
+          <input required type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Faculty Email" className="w-full p-4 bg-slate-50 border-2 rounded-xl outline-none focus:border-slate-900 font-bold" />
+          <input required type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Passkey" className="w-full p-4 bg-slate-50 border-2 rounded-xl outline-none focus:border-slate-900 font-bold" />
           <button className="w-full py-4 bg-slate-900 text-white rounded-xl font-black uppercase tracking-widest hover:bg-slate-800 transition-all">Establish Session</button>
           <button type="button" onClick={() => { setIsGuest(true); localStorage.setItem('isGuest', 'true'); }} className="w-full py-4 bg-white border-2 text-slate-500 rounded-xl font-black uppercase tracking-widest text-[10px]">Guest Access</button>
         </form>
@@ -232,30 +149,30 @@ const App: React.FC = () => {
       <aside className="w-72 border-r border-slate-100 hidden lg:flex flex-col fixed h-full z-20 no-print">
         <div className="p-8 border-b border-slate-50">
            <div className="flex items-center gap-3 mb-10 cursor-pointer" onClick={() => setMode(AppMode.ONBOARDING)}>
-              <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-white shadow-md"><GraduationCap className="w-6 h-6" /></div>
+              <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-white"><GraduationCap className="w-6 h-6" /></div>
               <h1 className="font-black text-lg uppercase tracking-tight">Blueprint Pro</h1>
            </div>
-           <button onClick={() => { setMode(AppMode.GENERATOR); setCurrentStep(1); }} className="w-full py-3 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg">
-              <Plus className="w-4 h-4 inline mr-2" /> New Intake
+           <button onClick={() => setMode(AppMode.GENERATOR)} className="w-full py-3 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg">
+              <Plus className="w-4 h-4 inline mr-2" /> Start Architecture
            </button>
         </div>
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-           <h3 className="text-[9px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2"><Library className="w-3.5 h-3.5" /> Assessment Archive</h3>
+           <h3 className="text-[9px] font-black uppercase tracking-widest text-slate-400">Library</h3>
            <div className="space-y-1">
               {savedWorksheets.map(ws => (
-                <div key={ws.id} className="p-3 rounded-xl border border-transparent hover:bg-slate-50 hover:border-slate-100 cursor-pointer group" onClick={() => { setWorksheet(ws); setMode(AppMode.WORKSHEET); }}>
-                   <span className="text-[10px] font-black uppercase block truncate group-hover:text-blue-600">{ws.title}</span>
-                   <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{ws.documentType} • {ws.moduleTitle}</span>
+                <div key={ws.id} className="p-3 rounded-xl hover:bg-slate-50 cursor-pointer" onClick={() => { setWorksheet(ws); setMode(AppMode.WORKSHEET); }}>
+                   <span className="text-[10px] font-black uppercase block truncate">{ws.title}</span>
+                   <span className="text-[8px] font-bold text-slate-300 uppercase">{ws.documentType}</span>
                 </div>
               ))}
            </div>
         </div>
         <div className="p-6 border-t border-slate-50 space-y-3">
-           <button onClick={() => setMode(AppMode.SETTINGS)} className={`w-full p-3 rounded-xl flex items-center gap-3 font-black text-[9px] uppercase tracking-widest transition-all ${mode === AppMode.SETTINGS ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>
-              <Settings className="w-4 h-4" /> Branding Portal
+           <button onClick={() => setMode(AppMode.SETTINGS)} className="w-full p-3 rounded-xl flex items-center gap-3 font-black text-[9px] uppercase text-slate-400 hover:text-slate-900">
+              <Settings className="w-4 h-4" /> Branding
            </button>
-           <button onClick={() => { setUser(null); setIsGuest(false); localStorage.removeItem('local_user_session'); localStorage.removeItem('isGuest'); }} className="w-full p-3 rounded-xl flex items-center gap-3 font-black text-[9px] uppercase tracking-widest text-slate-400 hover:text-red-500 transition-colors">
-              <XCircle className="w-4 h-4" /> End Session
+           <button onClick={() => { setUser(null); setIsGuest(false); localStorage.clear(); }} className="w-full p-3 rounded-xl flex items-center gap-3 font-black text-[9px] uppercase text-slate-300 hover:text-red-500">
+              <XCircle className="w-4 h-4" /> Sign Out
            </button>
         </div>
       </aside>
@@ -263,42 +180,88 @@ const App: React.FC = () => {
       <main className="flex-1 lg:ml-72 min-h-screen relative bg-white">
         <div className="p-8 lg:p-12 pb-32">
           {loading ? (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-8">
+            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-8 animate-in fade-in zoom-in">
                <div className="relative">
                  <Loader2 className="w-20 h-20 animate-spin text-slate-900" />
                  <Sparkles className="absolute -top-2 -right-2 w-8 h-8 text-yellow-400 animate-pulse" />
                </div>
                <div className="max-w-sm">
-                 <h2 className="text-4xl font-black uppercase tracking-tighter">Materializing Containers</h2>
-                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-2">Connecting Module: {formData.moduleTitle} to your lesson architecture...</p>
+                 <h2 className="text-4xl font-black uppercase tracking-tighter italic">Factory Materialization</h2>
+                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-2">Synthesizing {suiteIntents.length} distinct containers based on your Blueprint...</p>
                </div>
             </div>
-          ) : mode === AppMode.SETTINGS ? (
-            <div className="max-w-4xl mx-auto py-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
-               <header className="mb-12 text-center">
-                  <h2 className="text-5xl font-black uppercase tracking-tighter mb-2">Identity Portal</h2>
-                  <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Printer-Optimized Branding Configuration</p>
+          ) : mode === AppMode.GENERATOR ? (
+            <div className="max-w-6xl mx-auto py-4">
+               <header className="mb-12 flex justify-between items-end">
+                  <div>
+                    <h2 className="text-6xl font-black uppercase tracking-tighter">Suite Architect</h2>
+                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-2">Configure your custom instructional sequence</p>
+                  </div>
+                  <button onClick={() => setMode(AppMode.ONBOARDING)} className="text-slate-300 hover:text-slate-900 flex items-center gap-2 font-black text-[10px] uppercase tracking-widest"><ArrowLeft className="w-4 h-4" /> Back to Library</button>
                </header>
-               <div className="bg-white rounded-[3rem] border border-slate-100 shadow-xl p-12 space-y-12">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                     <div className="space-y-6">
-                        <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Basic Identity</h4>
-                        <input placeholder="Institution / School Name" className="w-full p-4 bg-slate-50 border-2 rounded-2xl outline-none font-bold" value={branding.institutionName} onChange={e => setBranding({...branding, institutionName: e.target.value})} />
-                        <input placeholder="Faculty Lead / Name" className="w-full p-4 bg-slate-50 border-2 rounded-2xl outline-none font-bold" value={branding.instructorName} onChange={e => setBranding({...branding, instructorName: e.target.value})} />
-                     </div>
-                     <div className="space-y-6">
-                        <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Logo & Visuals</h4>
-                        <div onClick={() => brandingLogoRef.current?.click()} className="h-32 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 overflow-hidden">
-                           <input type="file" ref={brandingLogoRef} className="hidden" accept="image/*" onChange={e => {
-                              const f = e.target.files?.[0]; if (f) { const r = new FileReader(); r.onloadend = () => setBranding({...branding, logoUrl: r.result as string}); r.readAsDataURL(f); }
-                           }} />
-                           {branding.logoUrl ? <img src={branding.logoUrl} className="h-full w-full object-contain p-4" /> : <CloudUpload className="text-slate-300 w-8 h-8" />}
+
+               <div className="grid grid-cols-12 gap-12">
+                  {/* Left Column: Context */}
+                  <div className="col-span-12 lg:col-span-4 space-y-8">
+                     <div className="bg-slate-50 p-8 rounded-[2.5rem] space-y-6">
+                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Knowledge Base</h3>
+                        <input className="w-full p-5 bg-white border-2 rounded-2xl font-black text-xl outline-none focus:border-slate-900" placeholder="Topic: e.g. Fractions" value={formData.topic} onChange={e => setFormData({...formData, topic: e.target.value})} />
+                        <input className="w-full p-4 bg-white border-2 rounded-2xl font-bold" placeholder="Module: e.g. Unit 2" value={formData.moduleTitle} onChange={e => setFormData({...formData, moduleTitle: e.target.value})} />
+                        <input className="w-full p-4 bg-white border-2 rounded-2xl font-bold" placeholder="Lesson: e.g. Addition" value={formData.lessonTitle} onChange={e => setFormData({...formData, lessonTitle: e.target.value})} />
+                        <div className="pt-4 border-t space-y-4">
+                           <label className="text-[9px] font-black uppercase text-slate-400">Institutional Rigor</label>
+                           <select className="w-full p-4 bg-white border-2 rounded-2xl font-bold outline-none" value={formData.audienceCategory} onChange={e => setFormData({...formData, audienceCategory: e.target.value as AudienceCategory})}>
+                              {Object.values(AudienceCategory).map(v => <option key={v} value={v}>{v.replace('_', ' ')}</option>)}
+                           </select>
                         </div>
                      </div>
                   </div>
-                  <div className="pt-8 border-t flex justify-end gap-4">
-                     <button onClick={() => setMode(AppMode.ONBOARDING)} className="px-8 py-3 font-black text-[10px] uppercase text-slate-400">Discard</button>
-                     <button onClick={handleSaveBranding} className="px-10 py-4 bg-slate-900 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-lg">Save Identity</button>
+
+                  {/* Right Column: Containers */}
+                  <div className="col-span-12 lg:col-span-8 space-y-6">
+                     <div className="flex justify-between items-center px-4">
+                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Suite Blueprint ({suiteIntents.length} Containers)</h3>
+                        <button onClick={addContainer} className="flex items-center gap-2 px-6 py-2 bg-slate-100 hover:bg-slate-200 rounded-full font-black text-[10px] uppercase tracking-widest transition-all">
+                           <Plus className="w-4 h-4" /> Add Container
+                        </button>
+                     </div>
+
+                     <div className="space-y-4">
+                        {suiteIntents.map((intent, i) => (
+                           <div key={i} className="group relative bg-white border-2 border-slate-100 rounded-[2rem] p-8 hover:border-slate-900 transition-all shadow-sm hover:shadow-xl">
+                              <div className="flex justify-between items-start mb-6">
+                                 <div className="w-8 h-8 bg-slate-900 text-white rounded-lg flex items-center justify-center font-black text-xs">{i + 1}</div>
+                                 <button onClick={() => removeContainer(i)} className="p-2 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><Trash2 className="w-4 h-4" /></button>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                 <div className="space-y-2">
+                                    <label className="text-[8px] font-black uppercase tracking-widest text-slate-400">Category</label>
+                                    <select className="w-full p-3 bg-slate-50 border-2 rounded-xl font-bold text-xs outline-none" value={intent.type} onChange={e => updateIntent(i, {type: e.target.value})}>
+                                       {Object.values(DocumentType).map(v => <option key={v} value={v}>{v.replace('_', ' ')}</option>)}
+                                    </select>
+                                 </div>
+                                 <div className="space-y-2">
+                                    <label className="text-[8px] font-black uppercase tracking-widest text-slate-400">Scaffolding</label>
+                                    <select className="w-full p-3 bg-slate-50 border-2 rounded-xl font-bold text-xs outline-none" value={intent.profile} onChange={e => updateIntent(i, {profile: e.target.value})}>
+                                       {Object.values(LearnerProfile).map(v => <option key={v} value={v}>{v.replace('_', ' ')}</option>)}
+                                    </select>
+                                 </div>
+                                 <div className="space-y-2">
+                                    <label className="text-[8px] font-black uppercase tracking-widest text-slate-400">Layout</label>
+                                    <select className="w-full p-3 bg-slate-50 border-2 rounded-xl font-bold text-xs outline-none" value={intent.layout} onChange={e => updateIntent(i, {layout: e.target.value})}>
+                                       {Object.values(LayoutStyle).map(v => <option key={v} value={v}>{v.replace('_', ' ')}</option>)}
+                                    </select>
+                                 </div>
+                              </div>
+                           </div>
+                        ))}
+                     </div>
+
+                     <div className="pt-12 flex justify-center">
+                        <button onClick={handleGenerate} className="px-20 py-8 bg-slate-900 text-white rounded-[2.5rem] font-black text-2xl uppercase tracking-tighter flex items-center gap-6 shadow-2xl hover:scale-105 active:scale-95 transition-all">
+                           <Sparkles className="w-8 h-8 text-yellow-400" /> Materialize Suite
+                        </button>
+                     </div>
                   </div>
                </div>
             </div>
@@ -334,84 +297,17 @@ const App: React.FC = () => {
                   </div>
                </div>
             </div>
-          ) : mode === AppMode.GENERATOR ? (
-            <div className="max-w-5xl mx-auto py-4">
-               <header className="mb-12">
-                  <h2 className="text-6xl font-black uppercase tracking-tighter">Factory Module</h2>
-                  {formData.guidelineData && <p className="text-[9px] font-black uppercase tracking-widest text-blue-600 mt-4 flex items-center gap-2"><Library className="w-4 h-4" /> Anchored to: {formData.guidelineData.name}</p>}
-               </header>
-
-               <div className="bg-white border border-slate-100 rounded-[3rem] shadow-xl p-12 space-y-16">
-                  {currentStep === 1 && (
-                     <div className="space-y-12 animate-in slide-in-from-right duration-300">
-                        <div className="space-y-3">
-                           <label className="text-[10px] font-black uppercase text-slate-400 px-2 tracking-widest">Main Topic</label>
-                           <input className="w-full p-6 bg-slate-50 border-2 rounded-2xl font-black text-2xl outline-none focus:border-slate-900" placeholder="e.g. Molecular Biology" value={formData.topic} onChange={e => setFormData({...formData, topic: e.target.value})} />
-                        </div>
-                        <div className="grid grid-cols-2 gap-8">
-                           <div className="space-y-3">
-                              <label className="text-[10px] font-black uppercase text-slate-400 px-2">Module Name</label>
-                              <input className="w-full p-5 bg-slate-50 border-2 rounded-2xl font-bold" placeholder="Unit 4: DNA" value={formData.moduleTitle} onChange={e => setFormData({...formData, moduleTitle: e.target.value})} />
-                           </div>
-                           <div className="space-y-3">
-                              <label className="text-[10px] font-black uppercase text-slate-400 px-2">Lesson Name</label>
-                              <input className="w-full p-5 bg-slate-50 border-2 rounded-2xl font-bold" placeholder="Lesson 1: Replication" value={formData.lessonTitle} onChange={e => setFormData({...formData, lessonTitle: e.target.value})} />
-                           </div>
-                        </div>
-                     </div>
-                  )}
-
-                  {currentStep === 2 && (
-                     <div className="space-y-12 animate-in slide-in-from-right duration-300">
-                        <div>
-                           <label className="text-[10px] font-black uppercase text-slate-400 px-2 tracking-widest mb-6 block">Target Student Needs</label>
-                           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                              <ScaffoldingTile icon={Languages} label="ESL / ELL" value={LearnerProfile.ESL_ELL} active={formData.learnerProfile === LearnerProfile.ESL_ELL} onClick={(v: any) => setFormData({...formData, learnerProfile: v})} />
-                              <ScaffoldingTile icon={BrainCircuit} label="IEP / Spec Ed" value={LearnerProfile.SPECIAL_ED} active={formData.learnerProfile === LearnerProfile.SPECIAL_ED} onClick={(v: any) => setFormData({...formData, learnerProfile: v})} />
-                              <ScaffoldingTile icon={Star} label="Gifted / Talented" value={LearnerProfile.GIFTED} active={formData.learnerProfile === LearnerProfile.GIFTED} onClick={(v: any) => setFormData({...formData, learnerProfile: v})} />
-                              <ScaffoldingTile icon={Target} label="Standard Tier" value={LearnerProfile.GENERAL} active={formData.learnerProfile === LearnerProfile.GENERAL} onClick={(v: any) => setFormData({...formData, learnerProfile: v})} />
-                           </div>
-                        </div>
-
-                        <div>
-                           <label className="text-[10px] font-black uppercase text-slate-400 px-2 tracking-widest mb-6 block">Learning Depth</label>
-                           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                              <IntentLevel label="Intro / Review" desc="Focus on definitions and basic recognition." value="Remembering" active={formData.difficulty === "Remembering"} onClick={(v: any) => setFormData({...formData, difficulty: v})} />
-                              <IntentLevel label="Practical Skill" desc="Focus on solving problems and real scenarios." value="Standard Application" active={formData.difficulty === "Standard Application"} onClick={(v: any) => setFormData({...formData, difficulty: v})} />
-                              <IntentLevel label="Advanced Mastery" desc="Focus on critical analysis and creation." value="Evaluating/Creating" active={formData.difficulty === "Evaluating/Creating"} onClick={(v: any) => setFormData({...formData, difficulty: v})} />
-                           </div>
-                        </div>
-                     </div>
-                  )}
-
-                  {currentStep === 3 && (
-                     <div className="space-y-12 animate-in slide-in-from-right duration-300">
-                        <div className="flex flex-col items-center justify-center py-20 bg-slate-50 rounded-[3rem] border-4 border-dashed border-slate-200">
-                           <Construction className="w-16 h-16 text-slate-300 mb-6" />
-                           <h3 className="text-3xl font-black uppercase tracking-tighter mb-4">Ready to Materialize</h3>
-                           <p className="text-slate-400 text-sm font-bold uppercase tracking-widest mb-12">Generating {bulkCount} containers linked to {formData.lessonTitle}</p>
-                           
-                           <button onClick={handleGenerate} className="px-20 py-8 bg-slate-900 text-white rounded-[2rem] font-black text-2xl uppercase tracking-tighter flex items-center gap-6 shadow-2xl hover:scale-105 active:scale-95 transition-all">
-                              <Sparkles className="w-8 h-8 text-yellow-400" /> Start Bulk Synthesis
-                           </button>
-                        </div>
-                     </div>
-                  )}
-
-                  <div className="pt-8 border-t flex justify-between items-center">
-                     <button onClick={() => setCurrentStep(s => s - 1)} disabled={currentStep === 1} className="text-slate-400 font-black uppercase tracking-widest text-[10px] disabled:opacity-0"><ArrowLeft className="w-4 h-4 inline mr-2" /> Back</button>
-                     <button onClick={() => { if (currentStep < 3) setCurrentStep(s => s + 1); }} disabled={currentStep === 3} className="px-12 py-4 border-2 border-slate-900 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-slate-900 hover:text-white transition-all">Next Step</button>
-                  </div>
-               </div>
-            </div>
           ) : mode === AppMode.BULK_REVIEW ? (
             <div className="max-w-6xl mx-auto py-12 animate-in fade-in duration-700">
-               <header className="mb-16">
-                  <h2 className="text-6xl font-black uppercase tracking-tighter">Materialization Complete</h2>
-                  <div className="flex items-center gap-6 mt-4">
-                     <span className="px-3 py-1 bg-slate-900 text-white rounded-lg text-[9px] font-black uppercase tracking-widest">{formData.moduleTitle}</span>
-                     <span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">{formData.lessonTitle}</span>
+               <header className="mb-16 flex justify-between items-end">
+                  <div>
+                    <h2 className="text-6xl font-black uppercase tracking-tighter italic">Factory Output</h2>
+                    <div className="flex items-center gap-6 mt-4">
+                       <span className="px-3 py-1 bg-slate-900 text-white rounded-lg text-[9px] font-black uppercase tracking-widest">{formData.moduleTitle}</span>
+                       <span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">{formData.lessonTitle}</span>
+                    </div>
                   </div>
+                  <button onClick={() => setMode(AppMode.GENERATOR)} className="px-8 py-3 bg-slate-100 hover:bg-slate-200 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all">New Architecture</button>
                </header>
 
                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -425,14 +321,13 @@ const App: React.FC = () => {
                               <span className="px-3 py-1 bg-slate-50 border border-slate-100 rounded text-[8px] font-black uppercase tracking-widest text-slate-400">{ws.documentType}</span>
                            </div>
                            <h3 className="text-2xl font-black uppercase tracking-tight mb-4 group-hover:text-blue-600 transition-colors">{ws.title}</h3>
-                           <p className="text-slate-400 text-xs font-bold leading-relaxed mb-8 truncate">{ws.topic}</p>
-                           <div className="space-y-2 mb-8">
-                              <div className="flex justify-between items-center text-[9px] font-black uppercase text-slate-400"><span>Items</span> <span>{ws.questions.length}</span></div>
-                              <div className="flex justify-between items-center text-[9px] font-black uppercase text-slate-400"><span>Weight</span> <span>{ws.questions.reduce((s, q) => s + (q.points || 0), 0)} PTS</span></div>
+                           <div className="flex items-center gap-3 mb-8">
+                              <span className="text-[8px] font-black uppercase text-slate-300 border px-2 py-0.5 rounded">{ws.learnerProfile}</span>
+                              <span className="text-[8px] font-black uppercase text-slate-300 border px-2 py-0.5 rounded">{ws.visualMetadata?.layoutStyle}</span>
                            </div>
                         </div>
                         <button onClick={() => { setWorksheet(ws); setMode(AppMode.WORKSHEET); }} className="w-full py-4 bg-slate-50 text-slate-900 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 group-hover:bg-slate-900 group-hover:text-white transition-all">
-                           <Eye className="w-4 h-4" /> Open Container
+                           <Eye className="w-4 h-4" /> Inspect Container
                         </button>
                      </div>
                   ))}
@@ -440,12 +335,12 @@ const App: React.FC = () => {
             </div>
           ) : worksheet && (
             <div className="animate-in fade-in duration-500">
-               <WorksheetView worksheet={worksheet} theme={branding.defaultTheme} showKey={showTeacherKey} isMathMode={isMathMode} onUpdate={setWorksheet} />
+               <WorksheetView worksheet={worksheet} theme={branding.defaultTheme} showKey={showTeacherKey} onUpdate={setWorksheet} />
                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-white/90 p-3 rounded-full shadow-2xl border border-slate-100 z-[90] no-print backdrop-blur-md">
                   <button onClick={() => setShowTeacherKey(!showTeacherKey)} className={`px-8 py-3 rounded-full font-black text-[10px] uppercase tracking-widest transition-all ${showTeacherKey ? 'bg-red-600 text-white' : 'bg-slate-50 border hover:bg-slate-100'}`}>
-                    {showTeacherKey ? 'Hide Key' : 'Show Solution Key'}
+                    {showTeacherKey ? 'Hide Key' : 'Solution Key'}
                   </button>
-                  <button onClick={() => { setMode(AppMode.ONBOARDING); setCurrentStep(1); }} className="px-8 py-3 bg-slate-900 text-white rounded-full font-black text-[10px] uppercase tracking-widest shadow-xl"><Plus className="w-4 h-4 inline mr-2" /> New Suite</button>
+                  <button onClick={() => setMode(AppMode.GENERATOR)} className="px-8 py-3 bg-slate-900 text-white rounded-full font-black text-[10px] uppercase tracking-widest shadow-xl">New Suite</button>
                </div>
             </div>
           )}

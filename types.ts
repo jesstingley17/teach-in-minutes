@@ -16,7 +16,22 @@ export enum DocumentType {
   HOMEWORK = 'HOMEWORK',
   ASSIGNMENT = 'ASSIGNMENT',
   EXAM = 'EXAM',
-  QUIZ = 'QUIZ'
+  QUIZ = 'QUIZ',
+  LAB_REPORT = 'LAB_REPORT',
+  GUIDED_NOTES = 'GUIDED_NOTES',
+  DEBATE_PREP = 'DEBATE_PREP'
+}
+
+export enum LayoutStyle {
+  LAID_TEACH = 'LAID_TEACH',
+  CLASSIC = 'CLASSIC',
+  ARCHITECT = 'ARCHITECT'
+}
+
+export enum AestheticMode {
+  PAPER = 'PAPER',
+  CHALKBOARD = 'CHALKBOARD',
+  BLUEPRINT = 'BLUEPRINT'
 }
 
 export enum AudienceCategory {
@@ -33,7 +48,9 @@ export enum LearnerProfile {
   SPECIAL_ED = 'SPECIAL_ED',
   GIFTED = 'GIFTED',
   ESL_ELL = 'ESL_ELL',
-  REMEDIAL = 'REMEDIAL'
+  DYSLEXIA_FRIENDLY = 'DYSLEXIA_FRIENDLY',
+  REMEDIAL = 'REMEDIAL',
+  ACCELERATED = 'ACCELERATED'
 }
 
 export enum CurriculumStandard {
@@ -64,6 +81,8 @@ export interface VisualMetadata {
   secondaryColor?: string;
   fontStyle?: string;
   subjectAesthetic?: string;
+  layoutStyle?: LayoutStyle;
+  aestheticMode?: AestheticMode;
 }
 
 export interface BrandingConfig {
@@ -97,6 +116,8 @@ export interface Worksheet {
   instructorName?: string;
   duration?: string;
   totalPoints?: number;
+  teachingContent?: string;
+  keyTakeaways?: string[];
   questions: Question[];
   rubric?: RubricCriterion[];
   visualMetadata?: VisualMetadata;
