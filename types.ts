@@ -77,6 +77,8 @@ export interface Worksheet {
   collectionId?: string;
   courseId?: string;
   moduleId?: string;
+  moduleTitle?: string;
+  lessonTitle?: string;
   title: string;
   topic: string;
   educationalLevel: string;
@@ -103,9 +105,7 @@ export enum AppMode {
   GENERATOR = 'GENERATOR',
   WORKSHEET = 'WORKSHEET',
   QUIZ = 'QUIZ',
-  COURSE_MANAGER = 'COURSE_MANAGER',
-  BLUEPRINT_DASHBOARD = 'BLUEPRINT_DASHBOARD',
-  COLLECTIONS_VIEW = 'COLLECTIONS_VIEW'
+  BULK_REVIEW = 'BULK_REVIEW'
 }
 
 export enum ThemeType {

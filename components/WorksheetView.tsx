@@ -7,7 +7,7 @@ import { uploadFile, getPublicUrl, supabase } from '../services/supabaseClient';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { 
-  Trash2, Edit3, Check, Landmark, Printer, Loader2, Link as LinkIcon, Share2, Volume2, Copy, GripVertical, Image as ImageIcon, PlusCircle, Sparkles, BookOpen, FileText, MousePointer2
+  Trash2, Edit3, Check, Landmark, Printer, Loader2, Link as LinkIcon, Share2, Volume2, Copy, GripVertical, Image as ImageIcon, PlusCircle, Sparkles, BookOpen, FileText, MousePointer2, Book
 } from 'lucide-react';
 
 interface WorksheetViewProps {
@@ -67,19 +67,6 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
     return pdf.output('blob');
   };
 
-  const handleShare = async () => {
-    setIsSharing(true);
-    try {
-      const blob = await generatePdfBlob();
-      const fileName = `${worksheet.id || 'temp'}-${Date.now()}.pdf`;
-      await uploadFile('worksheets-pdf', fileName, blob);
-      const url = getPublicUrl('worksheets-pdf', fileName);
-      setShareUrl(url);
-      if (worksheet.id) await supabase.from('worksheets').update({ share_url: url }).eq('id', worksheet.id);
-      navigator.clipboard.writeText(url);
-    } catch (error) { alert("Sharing failed."); } finally { setIsSharing(false); }
-  };
-
   const handleExportPDF = async () => {
     setIsExporting(true);
     try {
@@ -131,7 +118,7 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
         {label && <span className="absolute -top-4 left-0 text-[7px] font-black uppercase text-blue-500 opacity-0 group-hover/field:opacity-100 transition-opacity">Edit {label}</span>}
         <span 
           onClick={() => setEditing(true)} 
-          className={`cursor-text transition-all p-1 rounded border-2 border-transparent hover:border-blue-200 hover:bg-blue-50 block min-w-[20px] ${className} ${!value ? 'text-slate-900 font-black' : ''}`}
+          className={`cursor-text transition-all p-1 rounded border-2 border-transparent hover:border-blue-200 hover:bg-blue-50 block min-w-[20px] ${className} ${!value ? 'text-slate-400 font-bold italic' : ''}`}
         >
           {isMath ? <LatexRenderer content={value || placeholder} /> : (value || placeholder)}
         </span>
@@ -140,10 +127,10 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
   };
 
   return (
-    <div className="relative group/ws antialiased">
+    <div className="relative group/ws antialiased pb-4 mt-16">
       <div className="absolute -top-16 left-0 right-0 flex justify-between items-center no-print px-6 py-3 bg-white border border-slate-200 shadow-sm z-[60] rounded-2xl">
         <div className="flex gap-4 items-center">
-          <button onClick={() => setIsBuilderMode(!isBuilderMode)} className={`flex items-center gap-2 px-4 py-1.5 rounded-lg font-bold transition-all ${isBuilderMode ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{isBuilderMode ? <Check className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}{isBuilderMode ? 'Finish' : 'Edit Content'}</button>
+          <button onClick={() => setIsBuilderMode(!isBuilderMode)} className={`flex items-center gap-2 px-4 py-1.5 rounded-lg font-bold transition-all ${isBuilderMode ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{isBuilderMode ? <Check className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}{isBuilderMode ? 'Finish' : 'Edit'}</button>
           
           {isBuilderMode && (
              <button onClick={distributePoints} className="flex items-center gap-2 px-4 py-1.5 rounded-lg font-bold bg-slate-100 text-slate-900 hover:bg-slate-200 transition-all border border-slate-200"><Sparkles className="w-4 h-4" /> Auto Marks</button>
@@ -160,20 +147,20 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
           <div className="flex items-center gap-2 border-l pl-4 border-slate-100">
             <button onClick={handleExportPDF} disabled={isExporting} className="flex items-center gap-2 px-4 py-1.5 rounded-lg font-bold bg-blue-600 text-white hover:bg-blue-700 shadow-sm disabled:opacity-50">
               {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-              <span className="text-[9px] uppercase tracking-widest font-black">Export PDF</span>
+              <span className="text-[9px] uppercase tracking-widest font-black">Export</span>
             </button>
           </div>
         </div>
       </div>
 
-      <div id="worksheet-content" className={`max-w-[210mm] mx-auto p-[15mm] shadow-2xl min-h-[297mm] relative transition-all duration-300 ${themeClasses.body} ${themeClasses.container} border border-slate-100 print:shadow-none overflow-hidden antialiased`}>
+      <div id="worksheet-content" className={`max-w-[210mm] mx-auto p-[15mm] shadow-2xl min-h-[297mm] relative transition-all duration-300 ${themeClasses.body} ${themeClasses.container} border border-slate-100 print:shadow-none overflow-hidden antialiased bg-white`}>
         <div className="relative z-10">
           <div className={`border-b-4 ${themeClasses.accent} pb-6 mb-10`}>
             <div className="flex justify-between items-start mb-8">
               <div className="flex gap-6 flex-1">
                 <div 
                   onClick={() => logoInputRef.current?.click()} 
-                  className={`w-24 h-24 border-4 border-double rounded-2xl flex items-center justify-center cursor-pointer overflow-hidden group/logo relative ${worksheet.logoUrl ? 'border-transparent' : 'border-slate-900 bg-slate-50 hover:bg-blue-50 hover:border-blue-400 transition-all'}`}
+                  className={`w-20 h-20 border-4 border-double rounded-2xl flex items-center justify-center cursor-pointer overflow-hidden group/logo relative ${worksheet.logoUrl ? 'border-transparent' : 'border-slate-900 bg-slate-50 hover:bg-blue-50 transition-all'}`}
                 >
                   <input type="file" ref={logoInputRef} className="hidden" accept="image/*" onChange={handleLogoUpload} />
                   {worksheet.logoUrl ? (
@@ -183,16 +170,25 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
                     </>
                   ) : (
                     <div className="text-center no-print p-2">
-                      <ImageIcon className="w-8 h-8 text-slate-900 mx-auto" />
-                      <span className="text-[8px] font-black uppercase text-slate-900 mt-1 block">Click to Upload Logo</span>
+                      <ImageIcon className="w-6 h-6 text-slate-900 mx-auto" />
                     </div>
                   )}
-                  {!worksheet.logoUrl && <Landmark className="w-10 h-10 text-slate-200 absolute pointer-events-none print:hidden" />}
+                  {!worksheet.logoUrl && <Landmark className="w-8 h-8 text-slate-200 absolute pointer-events-none print:hidden" />}
                 </div>
 
-                <div className="space-y-4 flex-1">
-                   <EditableField label="Institution" value={worksheet.institutionName || "NAME OF INSTITUTION"} onSave={(v: any) => handleUpdate({...worksheet, institutionName: v})} className={`text-2xl ${themeClasses.header} uppercase tracking-tight text-slate-900 block`} />
-                   <EditableField label="Standards" value={worksheet.standardReference || "STANDARD ALIGNMENT REFERENCE"} onSave={(v: any) => handleUpdate({...worksheet, standardReference: v})} className="text-[10px] font-black text-slate-900 uppercase tracking-widest block" />
+                <div className="space-y-3 flex-1">
+                   <EditableField label="Institution" value={worksheet.institutionName || "INSTITUTION NAME"} onSave={(v: any) => handleUpdate({...worksheet, institutionName: v})} className={`text-xl ${themeClasses.header} uppercase tracking-tight text-slate-900 block`} />
+                   <div className="flex gap-4">
+                      <div className="flex items-center gap-1.5 px-2 py-0.5 bg-slate-50 border border-slate-200 rounded-md">
+                         <Book className="w-3 h-3 text-slate-400" />
+                         <EditableField label="Module" value={worksheet.moduleTitle || "MODULE REF"} onSave={(v: any) => handleUpdate({...worksheet, moduleTitle: v})} className="text-[9px] font-black text-slate-900 uppercase tracking-widest" />
+                      </div>
+                      <div className="flex items-center gap-1.5 px-2 py-0.5 bg-slate-50 border border-slate-200 rounded-md">
+                         <Sparkles className="w-3 h-3 text-blue-400" />
+                         <EditableField label="Lesson" value={worksheet.lessonTitle || "LESSON REF"} onSave={(v: any) => handleUpdate({...worksheet, lessonTitle: v})} className="text-[9px] font-black text-blue-600 uppercase tracking-widest" />
+                      </div>
+                   </div>
+                   <EditableField label="Standards" value={worksheet.standardReference || "ACADEMIC ALIGNMENT REFERENCE"} onSave={(v: any) => handleUpdate({...worksheet, standardReference: v})} className="text-[8px] font-bold text-slate-400 uppercase tracking-[0.2em] block" />
                 </div>
               </div>
 
@@ -206,22 +202,21 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
 
             <div className="grid grid-cols-3 gap-8 mt-10">
               <div className={`col-span-2 border-b-2 ${themeClasses.accent} pb-2`}>
-                <span className="text-[10px] font-black uppercase text-slate-900 mb-1 block">Student Name / ID:</span>
+                <span className="text-[9px] font-black uppercase text-slate-400 mb-1 block tracking-widest">Student Credentials</span>
               </div>
               <div className={`border-2 ${themeClasses.accent} p-4 text-center ${themeClasses.itemBg} relative group/total`}>
                 <span className="text-[10px] font-black uppercase text-slate-900 block mb-1">Total Marks</span>
                 <div className="text-3xl font-black text-slate-900">___ / {totalPoints}</div>
-                {isBuilderMode && <div className="absolute inset-0 bg-blue-50/50 opacity-0 group-hover/total:opacity-100 transition-opacity flex items-center justify-center pointer-events-none no-print"><MousePointer2 className="w-4 h-4 text-blue-500" /></div>}
               </div>
             </div>
           </div>
 
-          <div className={`mb-12 p-6 border-l-4 ${themeClasses.accent} text-sm text-slate-900 bg-slate-100/30 flex justify-between items-start rounded-r-xl shadow-sm`}>
+          <div className={`mb-12 p-6 border-l-4 ${themeClasses.accent} text-sm text-slate-900 bg-slate-50 flex justify-between items-start rounded-r-xl`}>
             <div className="flex-1">
-              <p className="text-[11px] font-black uppercase tracking-widest text-slate-900 mb-2 underline decoration-2 decoration-slate-300">Administrative Instructions:</p>
-              <EditableField label="Instructions" multiline value={worksheet.topic || "Please read all questions carefully before answering."} onSave={(v: any) => handleUpdate({...worksheet, topic: v})} isMath={isMathMode} className="font-bold leading-relaxed text-slate-900" />
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Instructions & Context</p>
+              <EditableField label="Topic" multiline value={worksheet.topic || "Topic description here..."} onSave={(v: any) => handleUpdate({...worksheet, topic: v})} isMath={isMathMode} className="font-bold leading-relaxed text-slate-800" />
             </div>
-            <button onClick={() => handleSpeech('intro', worksheet.topic || "")} className="no-print p-2 rounded-lg bg-white border border-slate-200 text-slate-900 hover:text-blue-600 shadow-sm transition-all ml-4"><Volume2 className="w-4 h-4" /></button>
+            <button onClick={() => handleSpeech('intro', worksheet.topic || "")} className="no-print p-2 rounded-lg bg-white border border-slate-200 text-slate-900 hover:text-blue-600 shadow-sm ml-4 transition-all"><Volume2 className="w-4 h-4" /></button>
           </div>
 
           <div className="space-y-16">
@@ -232,15 +227,15 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
                     <div className={`w-8 h-8 flex items-center justify-center font-black text-xs flex-shrink-0 text-white shadow-sm ${themeClasses.rounded} ${themeClasses.accentBg}`}>{idx + 1}</div>
                     <div className="flex-1">
                       <div className="mb-2 flex items-center justify-between">
-                        <EditableField label="Section instruction" value={q.sectionInstruction || "Section Direction"} onSave={(v: any) => updateQuestion(q.id, {sectionInstruction: v})} className="text-[10px] font-black uppercase text-slate-900 tracking-widest italic" />
+                        <EditableField label="Section" value={q.sectionInstruction || "Section Direction"} onSave={(v: any) => updateQuestion(q.id, {sectionInstruction: v})} className="text-[10px] font-black uppercase text-slate-400 tracking-widest italic" />
                         {isBuilderMode && <button onClick={() => handleUpdate({...worksheet, questions: worksheet.questions.filter(qu => qu.id !== q.id)})} className="no-print p-1 text-slate-300 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>}
                       </div>
-                      <EditableField label="Question text" multiline value={q.question} onSave={(v: any) => updateQuestion(q.id, {question: v})} className="text-xl font-bold text-slate-900 leading-tight block" isMath={true} />
+                      <EditableField label="Question" multiline value={q.question} onSave={(v: any) => updateQuestion(q.id, {question: v})} className="text-xl font-bold text-slate-900 leading-tight block" isMath={true} />
                     </div>
                   </div>
                   <div className="ml-4 text-right">
-                    <span className="text-[10px] font-black text-slate-900 uppercase block">Marks</span>
-                    <EditableField label="Points" value={String(q.points || 0)} onSave={(v: any) => updateQuestion(q.id, {points: parseInt(v) || 0})} className="font-black text-slate-900 w-12 text-center text-xl bg-slate-50 border-b border-slate-300" />
+                    <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">Marks</span>
+                    <EditableField label="Points" value={String(q.points || 0)} onSave={(v: any) => updateQuestion(q.id, {points: parseInt(v) || 0})} className="font-black text-slate-900 w-10 text-center text-lg bg-slate-50 rounded" />
                   </div>
                 </div>
 
@@ -248,9 +243,9 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
                   {q.type === QuestionType.MCQ && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {q.options?.map((opt, i) => (
-                        <div key={i} className={`flex items-center gap-3 p-4 border-2 border-slate-200 ${themeClasses.rounded} bg-white shadow-sm hover:border-slate-300 transition-all`}>
-                          <div className={`w-6 h-6 border-2 border-slate-900 rounded-full flex-shrink-0`} />
-                          <EditableField label={`Option ${i+1}`} value={opt} onSave={(v: any) => { const n = [...(q.options||[])]; n[i]=v; updateQuestion(q.id, {options: n}); }} className={`text-base font-bold text-slate-900`} isMath={true} />
+                        <div key={i} className={`flex items-center gap-3 p-4 border-2 border-slate-100 ${themeClasses.rounded} bg-white shadow-sm hover:border-blue-100 transition-all`}>
+                          <div className={`w-5 h-5 border-2 border-slate-900 rounded-full flex-shrink-0`} />
+                          <EditableField label={`Opt ${i+1}`} value={opt} onSave={(v: any) => { const n = [...(q.options||[])]; n[i]=v; updateQuestion(q.id, {options: n}); }} className={`text-base font-bold text-slate-800`} isMath={true} />
                         </div>
                       ))}
                     </div>
@@ -267,8 +262,8 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
           </div>
 
           <div className={`mt-32 pt-8 border-t-2 ${themeClasses.accent} flex justify-between items-end opacity-40`}>
-             <div className="text-[10px] font-black uppercase tracking-widest text-slate-900">Academic Standard Certification</div>
-             <div className="text-right text-[8px] font-black uppercase tracking-wider text-slate-900">Generated for professional institutional use</div>
+             <div className="text-[9px] font-black uppercase tracking-widest text-slate-900">Academic Standard Certification</div>
+             <div className="text-right text-[8px] font-black uppercase tracking-wider text-slate-900">Blueprint Pro Engine Synthesized</div>
           </div>
         </div>
 
@@ -276,25 +271,25 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
           <div className="mt-20 pt-20 border-t-4 border-double border-slate-300 relative z-10 page-break-before">
              <div className="flex items-center gap-4 mb-10">
                 <BookOpen className="w-10 h-10 text-red-600" />
-                <h2 className="text-5xl font-black uppercase tracking-tighter text-red-600">Teacher's Reference</h2>
+                <h2 className="text-5xl font-black uppercase tracking-tighter text-red-600">Official Solution Key</h2>
              </div>
              
-             <div className="bg-red-50/30 p-8 rounded-[2rem] border-2 border-red-100 space-y-12 shadow-inner">
+             <div className="bg-red-50/20 p-8 rounded-[2rem] border-2 border-red-100 space-y-12">
                 {worksheet.questions.map((q, idx) => (
                   <div key={`key-${q.id}`} className="space-y-4">
                      <div className="flex items-center gap-3">
-                        <span className="w-8 h-8 bg-red-600 text-white rounded-lg flex items-center justify-center font-black text-xs shadow-md">{idx + 1}</span>
+                        <span className="w-8 h-8 bg-red-600 text-white rounded-lg flex items-center justify-center font-black text-xs">{idx + 1}</span>
                         <p className="text-sm font-bold text-slate-700 truncate max-w-md">{q.question.replace(/[$]/g, '')}</p>
                      </div>
                      <div className="ml-11">
-                        <div className="p-4 bg-white border-2 border-red-200 rounded-2xl shadow-sm">
-                           <p className="text-[10px] font-black uppercase tracking-widest text-red-600 mb-1">Validated Solution:</p>
+                        <div className="p-4 bg-white border-2 border-red-100 rounded-2xl shadow-sm">
+                           <p className="text-[10px] font-black uppercase tracking-widest text-red-500 mb-1">Answer:</p>
                            <p className="text-xl font-black text-slate-900"><LatexRenderer content={q.correctAnswer} /></p>
                         </div>
                         {q.explanation && (
                           <div className="mt-4 p-4 bg-white/50 border border-slate-100 rounded-2xl">
-                             <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Pedagogical Rationale:</p>
-                             <p className="text-sm font-medium text-slate-700 leading-relaxed"><LatexRenderer content={q.explanation} /></p>
+                             <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Pedagogical Rationale:</p>
+                             <p className="text-xs font-medium text-slate-600 leading-relaxed"><LatexRenderer content={q.explanation} /></p>
                           </div>
                         )}
                      </div>
@@ -308,17 +303,17 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
       {isBuilderMode && (
         <div className="mt-12 p-10 border-4 border-dashed border-slate-200 rounded-[3rem] bg-slate-50/50 flex flex-wrap gap-4 justify-center no-print animate-in zoom-in">
            <div className="w-full text-center mb-4">
-              <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Append Assessment Objects</h4>
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Add Question Components</h4>
            </div>
            <button onClick={() => {
-              const newQ: Question = { id: Math.random().toString(36).substr(2, 9), type: QuestionType.MCQ, sectionInstruction: "Select the best answer:", question: "New Question...", options: ["Option A", "Option B", "Option C"], correctAnswer: "Option A", explanation: "Rationale here...", isChallenge: false, points: 5 };
+              const newQ: Question = { id: Math.random().toString(36).substr(2, 9), type: QuestionType.MCQ, sectionInstruction: "Choose correctly:", question: "New MCQ Question...", options: ["Option 1", "Option 2"], correctAnswer: "Option 1", explanation: "...", isChallenge: false, points: 5 };
               handleUpdate({...worksheet, questions: [...worksheet.questions, newQ]});
-           }} className="flex items-center gap-3 px-8 py-4 bg-white border-2 border-slate-200 rounded-2xl font-black text-xs uppercase tracking-widest hover:border-blue-500 transition-all shadow-sm"><PlusCircle className="w-5 h-5 text-blue-500" /> MCQ</button>
+           }} className="px-8 py-4 bg-white border-2 border-slate-200 rounded-2xl font-black text-xs uppercase tracking-widest hover:border-blue-500 transition-all shadow-sm">Multiple Choice</button>
            
            <button onClick={() => {
-              const newQ: Question = { id: Math.random().toString(36).substr(2, 9), type: QuestionType.SHORT_ANSWER, sectionInstruction: "Provide a concise response:", question: "New Question...", correctAnswer: "Expected Answer", explanation: "Rationale here...", isChallenge: false, points: 10 };
+              const newQ: Question = { id: Math.random().toString(36).substr(2, 9), type: QuestionType.SHORT_ANSWER, sectionInstruction: "Answer briefly:", question: "New Open Question...", correctAnswer: "Answer", explanation: "...", isChallenge: false, points: 10 };
               handleUpdate({...worksheet, questions: [...worksheet.questions, newQ]});
-           }} className="flex items-center gap-3 px-8 py-4 bg-white border-2 border-slate-200 rounded-2xl font-black text-xs uppercase tracking-widest hover:border-blue-500 transition-all shadow-sm"><PlusCircle className="w-5 h-5 text-blue-500" /> Open Ended</button>
+           }} className="px-8 py-4 bg-white border-2 border-slate-200 rounded-2xl font-black text-xs uppercase tracking-widest hover:border-blue-500 transition-all shadow-sm">Short Response</button>
         </div>
       )}
     </div>
