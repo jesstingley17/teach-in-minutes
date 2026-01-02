@@ -7,7 +7,8 @@ import { WorksheetView } from './components/WorksheetView';
 import { 
   GraduationCap, Loader2, ArrowRight, ArrowLeft, 
   Plus, Baby, School, Building2, UserCircle, 
-  Sparkles, CloudUpload, ShieldCheck, User as UserIcon, LogOut, Mail, Lock, AlertCircle, Layers
+  Sparkles, CloudUpload, ShieldCheck, User as UserIcon, LogOut, Mail, Lock, AlertCircle, Layers, FileText,
+  BookOpen
 } from 'lucide-react';
 
 const CATEGORIES = [
@@ -125,14 +126,14 @@ const App: React.FC = () => {
       </div>
       <div className="w-full lg:w-[550px] bg-white flex flex-col items-center justify-center p-8">
         <form onSubmit={handleAuth} className="w-full max-w-sm space-y-5">
-          <h2 className="text-4xl font-black text-slate-900 uppercase tracking-tighter mb-8">Portal Access</h2>
+          <h2 className="text-4xl font-black text-slate-900 uppercase tracking-tighter mb-8 text-center underline decoration-8 decoration-blue-500 underline-offset-8">Portal</h2>
           {authError && <div className="p-4 bg-red-50 border border-red-100 text-red-700 rounded-2xl text-xs font-bold">{authError.message}</div>}
           <div className="space-y-3">
-            <input required type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-slate-900 outline-none font-bold" />
-            <input required type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-slate-900 outline-none font-bold" />
+            <input required type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-slate-900 outline-none font-bold text-slate-900" />
+            <input required type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-slate-900 outline-none font-bold text-slate-900" />
           </div>
-          <button className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest">{loading ? <Loader2 className="animate-spin mx-auto" /> : 'Authorize'}</button>
-          <button type="button" onClick={() => { setIsGuest(true); localStorage.setItem('isGuest', 'true'); }} className="w-full py-4 text-slate-400 font-black uppercase tracking-widest text-[10px]">Continue as Guest</button>
+          <button className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-slate-800 transition-all">{loading ? <Loader2 className="animate-spin mx-auto" /> : 'Enter Portal'}</button>
+          <button type="button" onClick={() => { setIsGuest(true); localStorage.setItem('isGuest', 'true'); }} className="w-full py-4 text-slate-600 font-black uppercase tracking-widest text-[11px] hover:text-slate-900 transition-all">Continue as Guest Mode</button>
         </form>
       </div>
     </div>
@@ -144,19 +145,19 @@ const App: React.FC = () => {
         <div className="p-8 border-b border-slate-100">
            <div className="flex items-center gap-3 mb-10">
               <div className="w-10 h-10 bg-slate-900 rounded-2xl flex items-center justify-center text-white"><GraduationCap className="w-6 h-6" /></div>
-              <div><h1 className="font-black text-xl tracking-tighter leading-none uppercase">Blueprint Pro</h1><span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Generator Engine</span></div>
+              <div><h1 className="font-black text-xl tracking-tighter leading-none uppercase text-slate-900">Blueprint Pro</h1><span className="text-[10px] font-bold text-slate-900 uppercase tracking-widest">Generator Engine</span></div>
            </div>
-           <button onClick={() => { setMode(AppMode.GENERATOR); setCurrentStep(1); }} className="w-full flex items-center justify-center gap-3 p-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md">
-              <Plus className="w-4 h-4" /> New Intake
+           <button onClick={() => { setMode(AppMode.GENERATOR); setCurrentStep(1); }} className="w-full flex items-center justify-center gap-3 p-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md hover:scale-[1.02] transition-transform">
+              <Plus className="w-4 h-4" /> Start New Intake
            </button>
         </div>
         <div className="flex-1 overflow-y-auto p-6">
-           <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-300 mb-6 px-1">Recent Library</h3>
+           <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-900 mb-6 px-1 flex items-center gap-2"><FileText className="w-3 h-3" /> Recent Archive</h3>
            <div className="space-y-1">
               {savedWorksheets.map(ws => (
-                <div key={ws.id} className="p-4 rounded-2xl border border-transparent hover:bg-slate-50 hover:border-slate-100 cursor-pointer transition-all group" onClick={() => { setWorksheet(ws); setMode(AppMode.WORKSHEET); }}>
-                   <span className="text-[11px] font-black uppercase text-slate-700 block truncate group-hover:text-slate-900">{ws.title}</span>
-                   <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{ws.documentType} • {new Date(ws.savedAt!).toLocaleDateString()}</span>
+                <div key={ws.id} className="p-4 rounded-2xl border border-transparent hover:bg-slate-100 hover:border-slate-200 cursor-pointer transition-all group" onClick={() => { setWorksheet(ws); setMode(AppMode.WORKSHEET); }}>
+                   <span className="text-[11px] font-black uppercase text-slate-900 block truncate group-hover:text-blue-600 transition-colors">{ws.title}</span>
+                   <span className="text-[9px] font-bold text-slate-700 uppercase tracking-widest">{ws.documentType} • {new Date(ws.savedAt!).toLocaleDateString()}</span>
                 </div>
               ))}
            </div>
@@ -169,8 +170,8 @@ const App: React.FC = () => {
             <div className="flex flex-col items-center justify-center min-h-[70vh] space-y-10">
                <Loader2 className="w-16 h-16 animate-spin text-slate-900" />
                <div className="text-center">
-                 <h2 className="text-4xl font-black uppercase tracking-tighter text-slate-900">Synthesizing Assets...</h2>
-                 <p className="text-slate-500 font-bold uppercase tracking-widest text-xs mt-2">Running standard alignment & pedagogical checks</p>
+                 <h2 className="text-4xl font-black uppercase tracking-tighter text-slate-900">Synthesizing Standards...</h2>
+                 <p className="text-slate-900 font-bold uppercase tracking-widest text-xs mt-4 bg-yellow-100 px-4 py-2 rounded-full inline-block">Calibrating pedagogical vector</p>
                </div>
             </div>
           ) : mode === AppMode.GENERATOR ? (
@@ -179,33 +180,33 @@ const App: React.FC = () => {
                   <h2 className="text-7xl font-black tracking-tighter text-slate-900 mb-4 uppercase">Intake Module</h2>
                   <div className="flex justify-center gap-6 mt-16">
                      {[1, 2, 3].map(s => (
-                       <div key={s} className={`w-14 h-14 rounded-3xl flex items-center justify-center font-black transition-all border-4 ${currentStep === s ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-100 text-slate-200'}`}>{s}</div>
+                       <div key={s} className={`w-14 h-14 rounded-3xl flex items-center justify-center font-black transition-all border-4 ${currentStep === s ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-200 text-slate-400'}`}>{s}</div>
                      ))}
                   </div>
                </header>
 
-               <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden flex flex-col min-h-[600px]">
+               <div className="bg-white rounded-[3rem] shadow-2xl border border-slate-200 overflow-hidden flex flex-col min-h-[650px]">
                   <div className="p-16 flex-1">
                     {currentStep === 1 && (
                       <div className="animate-in slide-in-from-right duration-300 space-y-10">
                          <div className="space-y-4">
-                            <label className="text-[11px] font-black uppercase tracking-widest text-slate-600 block px-2">Objective Title</label>
-                            <input className="w-full p-8 bg-slate-50 border-2 border-slate-100 rounded-3xl font-bold text-2xl text-slate-800 outline-none focus:border-slate-900 transition-all" placeholder="e.g. Mechanical Engineering Midterm" value={formData.topic} onChange={e => setFormData({...formData, topic: e.target.value})} />
+                            <label className="text-[12px] font-black uppercase tracking-widest text-slate-900 block px-2">Assessment Objective Title</label>
+                            <input className="w-full p-8 bg-slate-50 border-2 border-slate-200 rounded-3xl font-black text-2xl text-slate-900 outline-none focus:border-slate-900 transition-all placeholder:text-slate-300" placeholder="e.g. Theoretical Physics Midterm 2024" value={formData.topic} onChange={e => setFormData({...formData, topic: e.target.value})} />
                          </div>
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                            <div className="space-y-4">
-                              <label className="text-[11px] font-black uppercase tracking-widest text-slate-600 block px-2">Source Document</label>
-                              <div onClick={() => fileInputRef.current?.click()} className={`h-48 border-4 border-dashed rounded-3xl transition-all flex flex-col items-center justify-center cursor-pointer ${formData.fileData ? 'border-blue-500 bg-blue-50' : 'border-slate-100 bg-slate-50'}`}>
+                              <label className="text-[12px] font-black uppercase tracking-widest text-slate-900 block px-2">Primary Reference Document</label>
+                              <div onClick={() => fileInputRef.current?.click()} className={`h-52 border-4 border-dashed rounded-[2.5rem] transition-all flex flex-col items-center justify-center cursor-pointer ${formData.fileData ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'}`}>
                                  <input type="file" ref={fileInputRef} className="hidden" accept=".pdf,image/*" onChange={e => {
                                    const f = e.target.files?.[0]; if (f) { const r = new FileReader(); r.onloadend = () => setFormData({...formData, fileData: { data: (r.result as string).split(',')[1], mimeType: f.type, name: f.name }}); r.readAsDataURL(f); }
                                  }} />
-                                 <CloudUpload className={`w-10 h-10 ${formData.fileData ? 'text-blue-500' : 'text-slate-200'}`} />
-                                 <span className="text-[10px] font-black uppercase mt-4 text-slate-400">{formData.fileData?.name || 'Drop PDF or Image'}</span>
+                                 <CloudUpload className={`w-12 h-12 ${formData.fileData ? 'text-blue-500' : 'text-slate-900'}`} />
+                                 <span className="text-[11px] font-black uppercase mt-4 text-slate-900">{formData.fileData?.name || 'Upload PDF or Media Source'}</span>
                               </div>
                            </div>
                            <div className="space-y-4">
-                              <label className="text-[11px] font-black uppercase tracking-widest text-slate-600 block px-2">Rigorous Constraints</label>
-                              <textarea className="w-full h-48 p-8 bg-slate-50 border-2 border-slate-100 rounded-3xl font-bold text-slate-700 outline-none resize-none focus:border-slate-900 transition-all" placeholder="Enter specific academic requirements..." value={formData.rawText} onChange={e => setFormData({...formData, rawText: e.target.value})} />
+                              <label className="text-[12px] font-black uppercase tracking-widest text-slate-900 block px-2">Detailed Rigor Constraints</label>
+                              <textarea className="w-full h-52 p-8 bg-slate-50 border-2 border-slate-200 rounded-[2.5rem] font-bold text-slate-900 outline-none resize-none focus:border-slate-900 transition-all" placeholder="Enter specific institutional requirements or curriculum focuses..." value={formData.rawText} onChange={e => setFormData({...formData, rawText: e.target.value})} />
                            </div>
                          </div>
                       </div>
@@ -214,20 +215,20 @@ const App: React.FC = () => {
                        <div className="animate-in slide-in-from-right duration-300 space-y-12">
                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                             {Object.values(CurriculumStandard).map(std => (
-                              <button key={std} onClick={() => setFormData({...formData, curriculumStandard: std})} className={`p-4 rounded-2xl border-2 transition-all font-black text-[10px] uppercase tracking-widest ${formData.curriculumStandard === std ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-600 border-slate-100'}`}>{std.replace('_', ' ')}</button>
+                              <button key={std} onClick={() => setFormData({...formData, curriculumStandard: std})} className={`p-5 rounded-2xl border-2 transition-all font-black text-[11px] uppercase tracking-widest ${formData.curriculumStandard === std ? 'bg-slate-900 text-white border-slate-900 shadow-lg' : 'bg-white text-slate-900 border-slate-200 hover:border-slate-900'}`}>{std.replace('_', ' ')}</button>
                             ))}
                          </div>
                          <div className="grid grid-cols-2 gap-8">
                             <div className="space-y-4">
-                               <label className="text-[11px] font-black uppercase tracking-widest text-slate-600 block">Audience Category</label>
-                               <select className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold outline-none" value={formData.audienceCategory} onChange={e => setFormData({...formData, audienceCategory: e.target.value as AudienceCategory})}>
+                               <label className="text-[12px] font-black uppercase tracking-widest text-slate-900 block px-2">Student Audience Tier</label>
+                               <select className="w-full p-5 bg-slate-50 border-2 border-slate-200 rounded-2xl font-black text-slate-900 outline-none cursor-pointer" value={formData.audienceCategory} onChange={e => setFormData({...formData, audienceCategory: e.target.value as AudienceCategory})}>
                                   {Object.values(AudienceCategory).map(c => <option key={c} value={c}>{c.replace('_', ' ')}</option>)}
                                </select>
                             </div>
                             <div className="space-y-4">
-                               <label className="text-[11px] font-black uppercase tracking-widest text-slate-600 block">Difficulty Vector</label>
-                               <select className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold outline-none" value={formData.difficulty} onChange={e => setFormData({...formData, difficulty: e.target.value})}>
-                                  <option>Introductory</option><option>Standard</option><option>Challenging</option><option>Professional</option>
+                               <label className="text-[12px] font-black uppercase tracking-widest text-slate-900 block px-2">Difficulty Spectrum</label>
+                               <select className="w-full p-5 bg-slate-50 border-2 border-slate-200 rounded-2xl font-black text-slate-900 outline-none cursor-pointer" value={formData.difficulty} onChange={e => setFormData({...formData, difficulty: e.target.value})}>
+                                  <option>Introductory (100 Level)</option><option>Standard Undergraduate</option><option>Advanced / Challenging</option><option>Professional Postgraduate</option>
                                </select>
                             </div>
                          </div>
@@ -235,36 +236,50 @@ const App: React.FC = () => {
                     )}
                     {currentStep === 3 && (
                        <div className="animate-in slide-in-from-right duration-300 h-full flex flex-col justify-center gap-12">
-                          <div className="p-10 bg-slate-900 rounded-[2.5rem] text-white flex items-center justify-between">
+                          <div className={`p-12 rounded-[3rem] text-white flex items-center justify-between transition-all duration-500 shadow-xl ${isBulkMode ? 'bg-blue-600 scale-105' : 'bg-slate-900'}`}>
                              <div className="flex items-center gap-6">
-                                <Layers className="w-10 h-10 text-blue-400" />
-                                <div><h3 className="text-xl font-black uppercase tracking-tight">Bulk Variant Generation</h3><p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Create multiple unique versions at once</p></div>
+                                <div className={`p-4 rounded-2xl transition-all ${isBulkMode ? 'bg-white text-blue-600' : 'bg-slate-800 text-blue-400'}`}>
+                                   <Layers className="w-10 h-10" />
+                                </div>
+                                <div><h3 className="text-2xl font-black uppercase tracking-tight">Bulk Variant Generation</h3><p className={`text-[11px] font-bold uppercase tracking-widest mt-1 ${isBulkMode ? 'text-blue-100' : 'text-slate-400'}`}>Produce multiple distinct versions</p></div>
                              </div>
-                             <div className="flex items-center gap-4">
-                                {isBulkMode && <input type="number" min="2" max="10" className="w-16 bg-slate-800 border border-slate-700 p-2 rounded-lg text-center font-bold" value={bulkCount} onChange={e => setBulkCount(parseInt(e.target.value))} />}
-                                <button onClick={() => setIsBulkMode(!isBulkMode)} className={`w-14 h-8 rounded-full transition-all relative ${isBulkMode ? 'bg-blue-500' : 'bg-slate-700'}`}><div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all ${isBulkMode ? 'left-7' : 'left-1'}`} /></button>
+                             <div className="flex items-center gap-6">
+                                {isBulkMode && (
+                                   <div className="flex items-center gap-3">
+                                      <span className="text-xs font-black uppercase text-blue-100">Count:</span>
+                                      <input type="number" min="2" max="10" className="w-20 bg-blue-700 border-2 border-blue-400 p-3 rounded-xl text-center font-black text-white text-lg focus:outline-none focus:ring-4 focus:ring-blue-300" value={bulkCount} onChange={e => setBulkCount(parseInt(e.target.value))} />
+                                   </div>
+                                )}
+                                <button onClick={() => setIsBulkMode(!isBulkMode)} className={`w-16 h-10 rounded-full transition-all relative border-2 ${isBulkMode ? 'bg-white border-white' : 'bg-slate-700 border-slate-600'}`}><div className={`absolute top-1 w-6 h-6 rounded-full transition-all shadow-md ${isBulkMode ? 'left-8 bg-blue-600' : 'left-1 bg-white'}`} /></button>
                              </div>
                           </div>
-                          <button onClick={handleGenerate} className="w-full py-10 bg-blue-600 text-white rounded-[2.5rem] font-black text-3xl uppercase tracking-tighter hover:bg-blue-700 transition-all flex items-center justify-center gap-6 shadow-2xl">
-                             Construct Blueprint {isBulkMode && `(x${bulkCount})`}
-                             <ArrowRight className="w-8 h-8" />
-                          </button>
+                          
+                          <div className="space-y-4">
+                             <button onClick={handleGenerate} className="w-full py-12 bg-blue-600 text-white rounded-[3rem] font-black text-4xl uppercase tracking-tighter hover:bg-blue-700 transition-all flex items-center justify-center gap-6 shadow-2xl hover:scale-[1.01] active:scale-95">
+                               {isBulkMode ? <Sparkles className="w-10 h-10 animate-pulse" /> : <GraduationCap className="w-10 h-10" />}
+                               Construct {isBulkMode ? `x${bulkCount} Blueprints` : 'Blueprint Asset'}
+                             </button>
+                             <p className="text-center text-[11px] font-black uppercase tracking-widest text-slate-400">Standard Alignment Check will run automatically</p>
+                          </div>
                        </div>
                     )}
                   </div>
-                  <div className="p-10 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
-                     <button onClick={() => setCurrentStep(s => s - 1)} disabled={currentStep === 1} className="text-slate-400 font-black uppercase tracking-widest text-[11px] disabled:opacity-0 flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
-                     <button onClick={() => setCurrentStep(s => s + 1)} disabled={currentStep === 3} className="px-10 py-3 bg-white border border-slate-200 rounded-xl font-black uppercase tracking-widest text-[11px] hover:border-slate-900 transition-all">Continue</button>
+                  <div className="p-12 bg-slate-50 border-t border-slate-200 flex justify-between items-center">
+                     <button onClick={() => setCurrentStep(s => s - 1)} disabled={currentStep === 1} className="text-slate-900 font-black uppercase tracking-widest text-[12px] disabled:opacity-0 flex items-center gap-2 hover:translate-x-[-4px] transition-transform"><ArrowLeft className="w-5 h-5" /> Back to Prior</button>
+                     <button onClick={() => setCurrentStep(s => s + 1)} disabled={currentStep === 3} className="px-12 py-4 bg-white border-2 border-slate-900 text-slate-900 rounded-2xl font-black uppercase tracking-widest text-[12px] hover:bg-slate-900 hover:text-white transition-all shadow-md">Proceed Forward</button>
                   </div>
                </div>
             </div>
           ) : worksheet && (
             <div className="animate-in fade-in duration-500 pb-32">
                <WorksheetView worksheet={worksheet} theme={ThemeType.ACADEMIC} showKey={showTeacherKey} isMathMode={isMathMode} onUpdate={setWorksheet} />
-               <div className="fixed bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-white/95 p-4 rounded-full shadow-2xl border border-slate-200 z-[90] no-print">
-                  <button onClick={() => setShowTeacherKey(!showTeacherKey)} className={`px-8 py-3 rounded-full font-black text-[11px] uppercase tracking-widest transition-all ${showTeacherKey ? 'bg-red-600 text-white shadow-lg' : 'bg-slate-100 text-slate-700'}`}>{showTeacherKey ? 'Hide Key' : 'Show Solution Key'}</button>
-                  <div className="w-[1px] h-6 bg-slate-200"></div>
-                  <button onClick={() => setMode(AppMode.GENERATOR)} className="px-8 py-3 bg-slate-900 text-white rounded-full font-black text-[11px] uppercase tracking-widest flex items-center gap-3"><Plus className="w-4 h-4" /> New Generator</button>
+               <div className="fixed bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-white/95 p-4 rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.15)] border-2 border-slate-200 z-[90] no-print backdrop-blur-md">
+                  <button onClick={() => setShowTeacherKey(!showTeacherKey)} className={`px-10 py-4 rounded-full font-black text-[12px] uppercase tracking-widest transition-all shadow-lg flex items-center gap-3 ${showTeacherKey ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-900 border border-slate-200'}`}>
+                    {showTeacherKey ? <BookOpen className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
+                    {showTeacherKey ? 'Hide Official Key' : 'Reveal Official Key'}
+                  </button>
+                  <div className="w-[1px] h-8 bg-slate-300"></div>
+                  <button onClick={() => setMode(AppMode.GENERATOR)} className="px-10 py-4 bg-slate-900 text-white rounded-full font-black text-[12px] uppercase tracking-widest flex items-center gap-3 hover:scale-105 transition-transform"><Plus className="w-4 h-4" /> New Blueprint</button>
                </div>
             </div>
           )}

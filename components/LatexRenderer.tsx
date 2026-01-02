@@ -12,9 +12,8 @@ export const LatexRenderer: React.FC<LatexRendererProps> = ({ content, className
   const parts = useMemo(() => {
     if (!content) return [];
     
-    // Improved regex to find $...$, $$...$$, or strings that look like raw LaTeX commands
-    // Pattern catches $...$, $$...$$, or sequences starting with \ followed by common commands
-    const regex = /(\$\$[\s\S]*?\$\$|\$.*?\$|\\(?:frac|sqrt|cdot|times|sum|int|infty|alpha|beta|gamma)\{?.*?\}?)/g;
+    // Regex to find $...$, $$...$$, or strings starting with common LaTeX commands like \frac, \sqrt, etc.
+    const regex = /(\$\$[\s\S]*?\$\$|\$.*?\$|\\(?:frac|sqrt|cdot|times|sum|int|infty|alpha|beta|gamma|pm|div|degree|approx)\{?.*?\}?)/g;
     return content.split(regex).filter(p => p !== '');
   }, [content]);
 
@@ -31,7 +30,7 @@ export const LatexRenderer: React.FC<LatexRendererProps> = ({ content, className
             const math = part.replace(/^\$\$?|\$\$?$/g, '');
             const html = katex.renderToString(math, {
               throwOnError: false,
-              displayMode: part.startsWith('$$'),
+              displayMode: part.startsWith('$$') || displayMode,
               trust: true
             });
             return <span key={index} dangerouslySetInnerHTML={{ __html: html }} />;
