@@ -22,8 +22,9 @@ export interface GenerationOptions {
 }
 
 /**
- * Analyzes uploaded content to identify the underlying lesson structure.
- * Upgraded to Gemini 3 Pro with Thinking Budget for maximum structural accuracy.
+ * The "Right" Analysis Logic:
+ * Uses gemini-3-pro-preview with Thinking Budget to ensure large documents 
+ * are correctly decomposed into lessons without failing or skipping chapters.
  */
 export async function analyzeCurriculum(source: { text?: string; file?: { data: string; mimeType: string } }): Promise<LessonStructure[]> {
   const ai = getAI();
@@ -39,22 +40,22 @@ export async function analyzeCurriculum(source: { text?: string; file?: { data: 
   }
 
   const prompt = `
-    ROLE: Academic Syllabus Auditor & Curriculum Engineer.
+    ROLE: Academic Curriculum Architect.
     
-    TASK: Perform a deep structural audit of the provided material. 
-    You must extract EVERY distinct instructional unit, chapter, or lesson.
+    TASK: Analyze the provided educational material (syllabus, notes, or chapter).
+    Identify every distinct instructional unit or lesson. 
     
-    STRICT REQUIREMENTS:
-    1. If the document lists chapters (e.g., "Chapter 1", "Section 2.3"), extract them precisely.
-    2. If the document is raw text/notes, identify the thematic shifts where a new lesson begins.
-    3. You MUST generate at least one unit for every logically distinct topic found.
-    4. Provide a pedagogically sound title and a 3-sentence objective for each.
+    RULES:
+    1. Do not skip any chapters or sections.
+    2. Extract the core objective for each unit.
+    3. Identify 3 key questions that probe deep understanding for each unit.
     
-    OUTPUT: A JSON array of lesson objects. Do not omit any detected sections.
+    OUTPUT: Return a JSON array of lesson objects. 
+    Ensure the JSON is valid and comprehensive.
   `;
   
   if (source.text) {
-    parts.push({ text: `Source Context: ${source.text}` });
+    parts.push({ text: `Source Material Text: ${source.text}` });
   }
   parts.push({ text: prompt });
 
@@ -81,31 +82,25 @@ export async function analyzeCurriculum(source: { text?: string; file?: { data: 
     });
 
     const text = response.text || '[]';
-    // Clean potential markdown artifacts if they exist (though responseMimeType should handle it)
+    // Deep clean in case of unexpected wrappers
     const cleanedJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
     const result = JSON.parse(cleanedJson);
     return Array.isArray(result) ? result : [];
   } catch (error) {
-    console.error("Deep Curriculum Analysis Failed:", error);
+    console.error("Master Curriculum Scan Failure:", error);
     return [];
   }
 }
 
 export async function generateDoodles(topic: string, gradeLevel: string): Promise<string[]> {
   const ai = getAI();
-  const prompt = `Simple minimalist line-art sketches of educational icons for ${topic} at ${gradeLevel} level. Black and white.`;
+  const prompt = `Minimalist black and white line art icons for ${topic} education at ${gradeLevel} level.`;
   
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
-      contents: {
-        parts: [{ text: prompt }]
-      },
-      config: {
-        imageConfig: {
-          aspectRatio: "1:1"
-        }
-      }
+      contents: { parts: [{ text: prompt }] },
+      config: { imageConfig: { aspectRatio: "1:1" } }
     });
 
     const imageUrls: string[] = [];
@@ -116,7 +111,6 @@ export async function generateDoodles(topic: string, gradeLevel: string): Promis
         }
       }
     }
-    
     return imageUrls;
   } catch (error) {
     return [];
@@ -137,20 +131,16 @@ export async function generateWorksheet(options: GenerationOptions): Promise<Wor
   }
 
   const promptText = `
-    TASK: Materialize ${containerIntents.length} distinct educational instruments.
-    
-    CURRICULUM MAPPING:
-    Each unit below is a separate 'node' in the course. 
-    Strictly follow the 'FOCUS' instructions for each node to ensure 100% coverage without overlap.
+    GENERATE ${containerIntents.length} UNIQUE ACADEMIC UNITS.
     
     SUBJECT: ${topic}
     LEVEL: ${educationalLevel}
     AUDIENCE: ${audienceCategory}
-    ${rawText ? `ANCHOR CONTENT: ${rawText}` : ''}
+    CONTEXT: ${rawText || 'Standard curriculum'}
     
-    UNITS TO GENERATE:
+    MAPPING:
     ${containerIntents.map((intent, i) => `
-    [UNIT ${i+1}]
+    UNIT ${i+1}:
     - FOCUS: ${intent.specificInstructions}
     - DEPTH: ${intent.depth}
     - STRUCTURE: ${Object.entries(intent.questionCounts).map(([t, c]) => `${c}x ${t}`).join(', ')}
@@ -190,6 +180,7 @@ export async function generateWorksheet(options: GenerationOptions): Promise<Wor
       model: "gemini-3-pro-preview", 
       contents: { parts },
       config: {
+        thinkingConfig: { thinkingBudget: 4000 },
         responseMimeType: "application/json",
         responseSchema: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: schema, required: ["title", "questions"] } }
       }
@@ -206,7 +197,7 @@ export async function generateWorksheet(options: GenerationOptions): Promise<Wor
       visualMetadata: { layoutStyle: containerIntents[i].layout }
     })) as Worksheet[];
   } catch (error: any) { 
-    console.error("Master Suite Synthesis Error:", error);
+    console.error("Generation Error:", error);
     throw error; 
   }
 }
