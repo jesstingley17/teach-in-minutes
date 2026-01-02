@@ -109,25 +109,46 @@ export async function generateWorksheet(options: GenerationOptions): Promise<Wor
     bulkCount = 1
   } = options;
 
+  const isK12 = [
+    AudienceCategory.EARLY_YEARS, 
+    AudienceCategory.PRIMARY, 
+    AudienceCategory.MIDDLE_SCHOOL, 
+    AudienceCategory.HIGH_SCHOOL
+  ].includes(audienceCategory);
+
   const parts: any[] = [];
+  
+  // CRITICAL: Attach the file as the first part so the model grounds its response in the provided document
   if (fileData) {
     parts.push({ inlineData: { data: fileData.data, mimeType: fileData.mimeType } });
   }
 
+  const persona = isK12 
+    ? "K-12 Instructional Designer specialized in engaging pedagogy and classroom-appropriate language." 
+    : "University Curriculum Architect specialized in high-rigor tertiary education and research-based assessment.";
+
   const promptText = `
-    ROLE: University Curriculum Architect.
-    TASK: Construct a formal ${documentType}. Construct it with maximum academic rigor.
+    ROLE: ${persona}
+    TASK: Construct a formal ${documentType} based on the provided Knowledge Base / Topic.
     
-    REQUIREMENTS:
-    - Include a 'rubric' array of criteria if this is an ASSIGNMENT, EXAM, or ESSAY.
-    - Every question MUST have a 'learningOutcome' ID string (e.g., BLOOM-4.1).
-    - Map content to ${curriculumStandard}.
-    - Suggest a 'primaryColor' in 'visualMetadata' fitting the subject.
+    INSTRUCTIONS:
+    1. If a document (PDF/Image) is attached, it is your PRIMARY KNOWLEDGE BASE. You MUST ground your questions and explanations in its content.
+    2. Maintain maximum academic rigor appropriate for the ${audienceCategory} level.
+    3. Include a 'rubric' array of criteria if this is an ASSIGNMENT, EXAM, or ESSAY.
+    4. Every question MUST have a 'learningOutcome' ID string (e.g., CCSS.MATH.CONTENT.HSA-CED.A.1 for K12 or BLOOM-4.1 for University).
+    5. Map content strictly to ${curriculumStandard}.
+    6. Suggest a 'primaryColor' in 'visualMetadata' (HEX code) fitting the subject.
     
-    LATEX: Mandatory $...$ for all symbols/math.
+    CONTENT DETAILS:
+    Topic: ${topic}
+    Educational Level: ${educationalLevel}
+    Additional Constraints: ${rawText || "None provided."}
+    Language: ${language}
+
+    LATEX FORMATTING: Mandatory $...$ for all math symbols, equations, and technical notation.
   `;
   
-  parts.push({ text: promptText + `\n\nTopic: ${topic}\nLanguage: ${language}` });
+  parts.push({ text: promptText });
 
   const tools: any[] = [];
   if (useGrounding) tools.push({ googleSearch: {} });
@@ -200,7 +221,6 @@ export async function generateWorksheet(options: GenerationOptions): Promise<Wor
     return processResult(parsed);
   } catch (error: any) {
     if (error.message?.includes("Requested entity was not found")) {
-      // Trigger a key selection reset in the UI if possible
       throw new Error("API_KEY_EXPIRED");
     }
     throw error;
