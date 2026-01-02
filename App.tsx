@@ -15,7 +15,8 @@ import {
   Globe, FileStack, Sigma, 
   Baby, School, Building2, UserCircle, 
   Zap, Brain, Languages, Users, Layout, 
-  BookOpen, ChevronRight, MoreHorizontal, CheckCircle
+  BookOpen, ChevronRight, MoreHorizontal, CheckCircle,
+  File, X as CloseIcon
 } from 'lucide-react';
 
 const CATEGORIES = [
@@ -59,7 +60,8 @@ const App: React.FC = () => {
       [QuestionType.MCQ]: 3,
       [QuestionType.TF]: 2,
       [QuestionType.SHORT_ANSWER]: 2,
-    } as Record<string, number>
+    } as Record<string, number>,
+    fileData: null as { data: string; mimeType: string; name: string } | null
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -78,7 +80,6 @@ const App: React.FC = () => {
     setSavedWorksheets(newSaved);
   };
 
-  // Added updateCount helper to fix 'Cannot find name updateCount' error
   const updateCount = (type: string, delta: number) => {
     setFormData(prev => ({
       ...prev,
@@ -111,15 +112,38 @@ const App: React.FC = () => {
     }
   };
 
+  const handleModuleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setIsAnalyzing(true);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      const base64String = result.split(',')[1];
+      setFormData(prev => ({
+        ...prev,
+        fileData: {
+          data: base64String,
+          mimeType: file.type,
+          name: file.name
+        }
+      }));
+      setIsAnalyzing(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleGenerateFromModule = (module: CourseModule) => {
     setFormData({
       ...formData,
       topic: `${module.title}: ${module.topics.join(', ')}`,
       customTitle: module.title,
-      rawText: module.description
+      rawText: module.description,
+      fileData: null // Reset file when picking a new module
     });
     setMode(AppMode.GENERATOR);
-    setCurrentStep(3); // Skip to question counts
+    setCurrentStep(2); // Go to material step to allow uploads
   };
 
   const handleGenerate = async () => {
@@ -130,7 +154,8 @@ const App: React.FC = () => {
         ...formData,
         questionCounts: formData.questionCounts as Record<string, number>,
         courseContext: activeCourse ? `From course: ${activeCourse.title}` : undefined,
-        isMathMode
+        isMathMode,
+        fileData: formData.fileData ? { data: formData.fileData.data, mimeType: formData.fileData.mimeType } : undefined
       });
       setWorksheet({ ...result, id: Date.now().toString(), savedAt: Date.now() });
       setMode(AppMode.WORKSHEET);
@@ -145,7 +170,6 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex bg-slate-100">
-      {/* Sidebar */}
       <aside className="w-80 bg-white border-r border-slate-200 hidden lg:flex flex-col fixed h-full z-20 no-print">
         <div className="p-8 border-b border-slate-100">
            <div className="flex items-center gap-3">
@@ -161,7 +185,7 @@ const App: React.FC = () => {
         
         <div className="flex-1 overflow-y-auto p-6 space-y-8">
            <nav className="space-y-2">
-              <button onClick={() => { setMode(AppMode.GENERATOR); setCurrentStep(1); }} className={`w-full flex items-center gap-3 p-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${mode === AppMode.GENERATOR ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
+              <button onClick={() => { setMode(AppMode.GENERATOR); setCurrentStep(1); setFormData(p => ({ ...p, fileData: null })); }} className={`w-full flex items-center gap-3 p-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${mode === AppMode.GENERATOR ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
                  <Plus className="w-4 h-4" /> New Session
               </button>
               {activeCourse && (
@@ -336,28 +360,63 @@ const App: React.FC = () => {
 
                         {currentStep === 2 && (
                           <div className="animate-in slide-in-from-right duration-500 h-full flex flex-col gap-8">
-                             <div className="flex gap-4 p-2 bg-slate-100 rounded-2xl">
-                                <button onClick={() => fileInputRef.current?.click()} className="flex-1 p-6 bg-white rounded-xl shadow-sm border border-slate-200 text-center hover:border-slate-400 transition-all flex flex-col items-center">
-                                   <Upload className="w-8 h-8 text-blue-500 mb-2" />
-                                   <span className="font-black text-[10px] uppercase tracking-widest">Upload Module Material</span>
-                                   <input ref={fileInputRef} type="file" className="hidden" />
-                                </button>
+                             <div className="space-y-4">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Course Documentation</label>
+                                {!formData.fileData ? (
+                                  <button onClick={() => fileInputRef.current?.click()} className="w-full p-8 border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50 hover:bg-white hover:border-blue-500 hover:shadow-xl transition-all flex flex-col items-center group">
+                                     <div className="p-4 bg-blue-100 rounded-2xl text-blue-600 mb-4 group-hover:scale-110 transition-transform">
+                                        <Upload className="w-8 h-8" />
+                                     </div>
+                                     <span className="font-black text-xs uppercase tracking-widest text-slate-400 group-hover:text-blue-600">Attach Module Material (PDF, DOCX, IMG)</span>
+                                     <input ref={fileInputRef} type="file" className="hidden" onChange={handleModuleFileChange} />
+                                  </button>
+                                ) : (
+                                  <div className="flex items-center justify-between p-6 bg-blue-600 rounded-[2rem] text-white shadow-2xl animate-in zoom-in duration-300">
+                                     <div className="flex items-center gap-4">
+                                        <div className="p-3 bg-white/20 rounded-xl">
+                                           <File className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                           <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Document Attached</p>
+                                           <p className="font-black text-sm truncate max-w-[200px]">{formData.fileData.name}</p>
+                                        </div>
+                                     </div>
+                                     <button 
+                                       onClick={() => setFormData(p => ({ ...p, fileData: null }))}
+                                       className="p-3 hover:bg-white/20 rounded-xl transition-colors"
+                                     >
+                                        <CloseIcon className="w-5 h-5" />
+                                     </button>
+                                  </div>
+                                )}
                              </div>
+                             
                              <div className="relative">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Direct Content Input</label>
-                                <textarea className="w-full h-40 p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] font-medium text-slate-700 focus:bg-white focus:border-slate-900 outline-none resize-none transition-all" placeholder="Paste notes for this specific generation..." value={formData.rawText} onChange={e => setFormData({...formData, rawText: e.target.value})} />
+                                <div className="flex justify-between items-center mb-2">
+                                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Direct Context Input</label>
+                                  {isAnalyzing && <span className="flex items-center gap-2 text-[10px] font-black text-blue-600 animate-pulse"><Loader2 className="w-3 h-3 animate-spin" /> ANALYZING</span>}
+                                </div>
+                                <textarea className="w-full h-40 p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] font-medium text-slate-700 focus:bg-white focus:border-slate-900 outline-none resize-none transition-all" placeholder="Paste additional notes or lecture summaries here..." value={formData.rawText} onChange={e => setFormData({...formData, rawText: e.target.value})} />
                              </div>
                           </div>
                         )}
 
                         {currentStep === 3 && (
                           <div className="animate-in slide-in-from-right duration-500 h-full flex flex-col gap-8">
-                             <div className="p-8 bg-blue-50 rounded-3xl border border-blue-100 flex items-center gap-6">
-                                <div className="p-4 bg-blue-600 rounded-2xl text-white shadow-lg"><FileText className="w-6 h-6" /></div>
-                                <div>
-                                   <p className="text-[10px] font-black uppercase text-blue-400 tracking-widest mb-1">Target Section</p>
-                                   <h4 className="text-xl font-black text-blue-900 uppercase leading-none">{formData.topic.split(':')[0]}</h4>
+                             <div className="p-8 bg-blue-50 rounded-3xl border border-blue-100 flex items-center justify-between">
+                                <div className="flex items-center gap-6">
+                                   <div className="p-4 bg-blue-600 rounded-2xl text-white shadow-lg"><FileText className="w-6 h-6" /></div>
+                                   <div>
+                                      <p className="text-[10px] font-black uppercase text-blue-400 tracking-widest mb-1">Target Section</p>
+                                      <h4 className="text-xl font-black text-blue-900 uppercase leading-none">{formData.topic.split(':')[0]}</h4>
+                                   </div>
                                 </div>
+                                {formData.fileData && (
+                                   <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-blue-200">
+                                      <File className="w-3.5 h-3.5 text-blue-600" />
+                                      <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest">Doc Attached</span>
+                                   </div>
+                                )}
                              </div>
 
                              <div className="space-y-6">
