@@ -3,19 +3,24 @@ import { put } from "@vercel/blob";
 
 /**
  * Uploads a file to Vercel Blob and returns the public URL.
- * Note: Requires BLOB_READ_WRITE_TOKEN in process.env.
+ * Fallback: If cloud upload fails or credentials are missing, returns a local Data URL (base64).
  */
 export async function uploadAsset(file: File): Promise<string> {
   try {
+    // Attempt cloud upload if possible
     const { url } = await put(`assets/${Date.now()}-${file.name}`, file, {
       access: 'public',
-      // In a client environment, we rely on the token being injected via process.env
-      // Note: For client-side 'put', the @vercel/blob package usually expects a server route or signed token.
-      // This implementation follows the user request to use 'put' with access 'public'.
     });
     return url;
   } catch (error) {
-    console.error("Vercel Blob Upload Failed:", error);
-    throw new Error("Cloud synchronization failed. Check connectivity and credentials.");
+    console.warn("Vercel Blob Upload Failed, falling back to local base64 encoding.", error);
+    
+    // Fallback to local Data URL so the user isn't blocked
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = (e) => reject(new Error("Failed to encode local asset."));
+      reader.readAsDataURL(file);
+    });
   }
 }

@@ -11,7 +11,7 @@ import {
   Languages, BrainCircuit, Star, Zap, Construction, Target,
   Settings, Layers, ChevronRight, Layout, Palette, Trash2, ArrowLeft,
   Settings2, Sliders, ListChecks, Hash, Gauge, Microscope, Copy, Check, User, PlayCircle,
-  Image as ImageIcon, Globe, Search, Brain
+  Image as ImageIcon, Globe, Search, Brain, ListOrdered
 } from 'lucide-react';
 
 const DEFAULT_BRANDING: BrandingConfig = {
@@ -94,13 +94,14 @@ const App: React.FC = () => {
     if (!file) return;
     setUploadingLogo(true);
     try {
+      // blobService handles fallback if cloud sync fails
       const url = await uploadAsset(file);
       const updatedBranding = { ...branding, logoUrl: url };
       setBranding(updatedBranding);
       localStorage.setItem('institutional_branding', JSON.stringify(updatedBranding));
     } catch (err) {
       console.error("Upload Error:", err);
-      alert("Asset sync failed.");
+      alert("Failed to process institutional asset. Please try again.");
     } finally {
       setUploadingLogo(false);
     }
@@ -119,25 +120,27 @@ const App: React.FC = () => {
       });
 
       if (lessons.length === 0) {
-        alert("Could not detect a clear lesson structure. Try manually adding nodes.");
+        alert("No clear curriculum structure detected. Please ensure the document contains chapters, sections, or distinct topics.");
         return;
       }
 
-      // Create one node per lesson detected
+      // Create one node per lesson detected as strictly requested
       const newIntents = lessons.map((lesson, idx) => ({
         id: Math.random().toString(),
-        type: DocumentType.QUIZ, // Defaulting to quiz as requested, user can change
+        type: DocumentType.QUIZ, 
         profile: LearnerProfile.GENERAL,
         layout: LayoutStyle.LAID_TEACH,
         depth: CognitiveDepth.APPLICATION,
         questionCounts: { [QuestionType.MCQ]: 5, [QuestionType.SHORT_ANSWER]: 2 },
-        specificInstructions: `Focus specifically on Lesson ${idx + 1}: ${lesson.title}. Concept summary: ${lesson.summary}`
+        specificInstructions: `UNIT ${idx + 1}: ${lesson.title}. Summary: ${lesson.summary}. Ensure questions strictly focus on this specific lesson content.`
       }));
 
       setSuiteIntents(newIntents);
-      setFormData({ ...formData, topic: formData.topic || "Curriculum Overview" });
+      // Auto-populate topic if blank
+      if (!formData.topic) setFormData({ ...formData, topic: "Full Course Curriculum" });
     } catch (e) {
-      alert("Scanning failed. Please check your source material.");
+      console.error("Scan Failed:", e);
+      alert("Curriculum scanning failed. Try a different file format or smaller text sample.");
     } finally {
       setIsScanning(false);
     }
@@ -145,6 +148,8 @@ const App: React.FC = () => {
 
   const handleGenerate = async () => {
     if (!formData.topic) { alert("Specify a topic to proceed."); return; }
+    if (suiteIntents.length === 0) { alert("Add at least one unit node."); return; }
+    
     setLoading(true);
     try {
       const results = await generateWorksheet({ 
@@ -164,14 +169,15 @@ const App: React.FC = () => {
 
       const prefix = user?.id || 'local-arch';
       const local = JSON.parse(localStorage.getItem(`archive_${prefix}`) || '[]');
-      const updatedArchive = [...processed, ...local].slice(0, 50);
+      const updatedArchive = [...processed, ...local].slice(0, 100);
       localStorage.setItem(`archive_${prefix}`, JSON.stringify(updatedArchive));
 
       setSavedWorksheets(updatedArchive);
       setCurrentBulkSet(processed);
       setMode(AppMode.BULK_REVIEW);
     } catch (e: any) { 
-      alert(e.message || "Synthesis engine encountered an error.");
+      console.error("Generation Error:", e);
+      alert(e.message || "Synthesis engine encountered an error. Please refine your inputs.");
     } finally { setLoading(false); }
   };
 
@@ -274,12 +280,12 @@ const App: React.FC = () => {
                </div>
                <div className="max-w-sm">
                  <h2 className="text-4xl font-black uppercase tracking-tighter italic">
-                   {isScanning ? "Scanning Curriculum" : "Materializing Suite"}
+                   {isScanning ? "Mapping Curriculum" : "Synthesizing Units"}
                  </h2>
                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-2 leading-relaxed">
                    {isScanning 
-                     ? "Parsing uploaded source to identify individual lessons and modules..." 
-                     : `Synthesizing pedagogical nodes for ${formData.topic}...`
+                     ? "Analyzing source structure to identify lessons, modules, and instructional units..." 
+                     : `Generating exactly ${suiteIntents.length} tailored units for ${formData.topic}...`
                    }
                  </p>
                </div>
@@ -288,8 +294,8 @@ const App: React.FC = () => {
             <div className="max-w-4xl mx-auto py-12 animate-in fade-in duration-700">
                <div className="text-center mb-16">
                   <Library className="w-12 h-12 mx-auto mb-6 text-slate-900" />
-                  <h2 className="text-5xl font-black uppercase tracking-tighter italic">Source Intake</h2>
-                  <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Onboard Content for Automatic Unit Mapping</p>
+                  <h2 className="text-5xl font-black uppercase tracking-tighter italic">Pedagogical Intake</h2>
+                  <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Onboard Resources for Automated 1:1 Lesson Mapping</p>
                </div>
                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="p-12 border-2 border-slate-100 rounded-[3rem] hover:border-slate-900 transition-all cursor-pointer group flex flex-col justify-between" onClick={() => guidelineInputRef.current?.click()}>
@@ -301,18 +307,18 @@ const App: React.FC = () => {
                      }} />
                      <div>
                         <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center mb-8 group-hover:bg-slate-900 group-hover:text-white transition-all"><CloudUpload className="w-6 h-6" /></div>
-                        <h3 className="text-3xl font-black uppercase tracking-tight italic">Content Aware</h3>
-                        <p className="text-slate-400 font-bold text-xs mt-4 leading-relaxed uppercase">Upload your syllabus or textbook to auto-map lessons.</p>
+                        <h3 className="text-3xl font-black uppercase tracking-tight italic">Resource Scan</h3>
+                        <p className="text-slate-400 font-bold text-xs mt-4 leading-relaxed uppercase">Ingest full textbooks or syllabi to auto-map your suite.</p>
                      </div>
-                     <span className="text-[9px] font-black uppercase tracking-widest text-slate-900 mt-12 flex items-center gap-2">Attach Source <ChevronRight className="w-3 h-3" /></span>
+                     <span className="text-[9px] font-black uppercase tracking-widest text-slate-900 mt-12 flex items-center gap-2">Load Source <ChevronRight className="w-3 h-3" /></span>
                   </div>
                   <div className="p-12 bg-slate-900 rounded-[3rem] flex flex-col justify-between cursor-pointer hover:bg-slate-800 transition-all" onClick={() => setMode(AppMode.GENERATOR)}>
                      <div>
                         <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center mb-8 text-white"><Zap className="w-6 h-6" /></div>
-                        <h3 className="text-3xl font-black uppercase tracking-tight text-white italic">Blank Canvas</h3>
-                        <p className="text-white/40 font-bold text-xs mt-4 leading-relaxed uppercase">Manually architect units from conceptual prompts.</p>
+                        <h3 className="text-3xl font-black uppercase tracking-tight text-white italic">Rapid Build</h3>
+                        <p className="text-white/40 font-bold text-xs mt-4 leading-relaxed uppercase">Design instructional instruments from a blank canvas.</p>
                      </div>
-                     <span className="text-[9px] font-black uppercase tracking-widest text-white/60 mt-12 flex items-center gap-2">Direct Entry <ChevronRight className="w-3 h-3" /></span>
+                     <span className="text-[9px] font-black uppercase tracking-widest text-white/60 mt-12 flex items-center gap-2">Enter Architect <ChevronRight className="w-3 h-3" /></span>
                   </div>
                </div>
             </div>
@@ -320,44 +326,44 @@ const App: React.FC = () => {
             <div className="max-w-6xl mx-auto py-4">
                <header className="mb-12 flex justify-between items-end">
                   <div>
-                    <h2 className="text-6xl font-black uppercase tracking-tighter italic">Instrument Studio</h2>
-                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-2 italic italic">Constructing unit-perfect assessment suites</p>
+                    <h2 className="text-6xl font-black uppercase tracking-tighter italic">Architect Studio</h2>
+                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-2 italic">Precision construction of unit-level assessments</p>
                   </div>
                   <button onClick={() => setMode(AppMode.ONBOARDING)} className="text-slate-300 hover:text-slate-900 flex items-center gap-2 font-black text-[10px] uppercase tracking-widest transition-colors"><ArrowLeft className="w-4 h-4" /> Back to Library</button>
                </header>
                <div className="grid grid-cols-12 gap-12">
                   <div className="col-span-12 lg:col-span-4 space-y-8">
                      <div className="bg-slate-50 p-8 rounded-[2.5rem] space-y-6">
-                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2"><Microscope className="w-3.5 h-3.5" /> Course Subject</h3>
-                        <input className="w-full p-5 bg-white border-2 rounded-2xl font-black text-xl outline-none focus:border-slate-900" placeholder="e.g. Modern European History" value={formData.topic} onChange={e => setFormData({...formData, topic: e.target.value})} />
+                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2"><Microscope className="w-3.5 h-3.5" /> Topic Domain</h3>
+                        <input className="w-full p-5 bg-white border-2 rounded-2xl font-black text-xl outline-none focus:border-slate-900" placeholder="e.g. Organic Chemistry" value={formData.topic} onChange={e => setFormData({...formData, topic: e.target.value})} />
                         
                         {(formData.guidelineData || formData.rawText) && (
-                          <div className="p-6 bg-blue-50 border-2 border-blue-200 rounded-[2rem] space-y-4 animate-in slide-in-from-top-4">
+                          <div className="p-6 bg-blue-50 border-2 border-blue-200 rounded-[2rem] space-y-4 animate-in slide-in-from-top-4 shadow-sm">
                             <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-700 flex items-center gap-2">
                               <Brain className="w-4 h-4" /> Curriculum Intelligence
                             </h4>
                             <p className="text-[9px] font-bold text-blue-600 uppercase leading-relaxed">
-                              Source detected. Click below to automatically map one node to every lesson found in your material.
+                              Source resource detected. Use Auto-Map to generate one unit for every lesson identified.
                             </p>
                             <button 
                               onClick={() => applyTemplate('one_per_lesson')} 
-                              className="w-full py-3 bg-blue-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors shadow-md"
+                              className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors shadow-lg active:scale-95"
                             >
-                              <Search className="w-4 h-4" /> Scan & Auto-Map Suite
+                              <ListOrdered className="w-4 h-4" /> Auto-Map: 1 per Lesson
                             </button>
                           </div>
                         )}
 
                         <div className="space-y-4 pt-4 border-t">
-                           <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Global Presets</label>
+                           <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Workspace Presets</label>
                            <div className="grid grid-cols-1 gap-3">
                               <button onClick={() => applyTemplate('assessment_pack')} className="w-full p-4 bg-white border-2 border-slate-100 hover:border-slate-900 rounded-2xl text-left transition-all group">
-                                 <span className="text-[9px] font-black uppercase text-slate-900 block mb-1">Unit Pack</span>
+                                 <span className="text-[9px] font-black uppercase text-slate-900 block mb-1">Instructional Pack</span>
                                  <span className="text-[8px] font-bold text-slate-400 uppercase italic">Homework + Quiz + Exam</span>
                               </button>
                               <button onClick={() => applyTemplate('differentiation_pack')} className="w-full p-4 bg-white border-2 border-slate-100 hover:border-slate-900 rounded-2xl text-left transition-all group">
-                                 <span className="text-[9px] font-black uppercase text-slate-900 block mb-1">Diversity Suite</span>
-                                 <span className="text-[8px] font-bold text-slate-400 uppercase italic">General + ESL + Advanced</span>
+                                 <span className="text-[9px] font-black uppercase text-slate-900 block mb-1">Inclusion Suite</span>
+                                 <span className="text-[8px] font-bold text-slate-400 uppercase italic">Multi-Tier Scaffolding</span>
                               </button>
                            </div>
                         </div>
@@ -365,20 +371,20 @@ const App: React.FC = () => {
                   </div>
                   <div className="col-span-12 lg:col-span-8 space-y-6">
                      <div className="flex justify-between items-center px-4">
-                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Unit Workspace ({suiteIntents.length} Units)</h3>
+                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Node Pipeline ({suiteIntents.length} Units)</h3>
                         <button onClick={addContainer} className="flex items-center gap-2 px-6 py-2 bg-slate-900 text-white rounded-full font-black text-[10px] uppercase tracking-widest transition-all shadow-md hover:scale-105 active:scale-95">
-                           <Plus className="w-4 h-4" /> Manual Unit
+                           <Plus className="w-4 h-4" /> Manual Node
                         </button>
                      </div>
-                     <div className="space-y-4">
+                     <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
                         {suiteIntents.map((intent, i) => (
                            <div key={intent.id} className="group relative bg-white border-2 border-slate-100 rounded-[2rem] p-8 hover:border-slate-900 transition-all shadow-sm">
                               <div className="flex justify-between items-start mb-6">
                                  <div className="flex items-center gap-4">
                                     <div className="w-8 h-8 bg-slate-900 text-white rounded-lg flex items-center justify-center font-black text-xs">{i + 1}</div>
                                     <h4 className="font-black text-lg uppercase tracking-tight italic">
-                                      {intent.specificInstructions?.includes("Lesson") 
-                                        ? intent.specificInstructions.split(":")[0] 
+                                      {intent.specificInstructions?.includes("UNIT") 
+                                        ? intent.specificInstructions.split(".")[0].replace("UNIT", "LESSON")
                                         : intent.type
                                       }
                                     </h4>
@@ -391,36 +397,44 @@ const App: React.FC = () => {
                               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                                  <div className="col-span-3">
                                    <p className="text-[9px] font-bold text-slate-400 uppercase italic truncate">
-                                      {intent.specificInstructions || "Universal topic coverage..."}
+                                      {intent.specificInstructions || "General domain assessment coverage..."}
                                    </p>
                                  </div>
                                  <div className="flex justify-end items-end">
-                                    <button onClick={() => setEditingContainerIdx(i)} className="w-full p-2 bg-slate-100 text-slate-600 rounded-lg font-black text-[9px] uppercase hover:bg-slate-200">Refine unit</button>
+                                    <button onClick={() => setEditingContainerIdx(i)} className="w-full p-2 bg-slate-100 text-slate-600 rounded-lg font-black text-[9px] uppercase hover:bg-slate-200">Refine</button>
                                  </div>
                               </div>
                            </div>
                         ))}
+                        {suiteIntents.length === 0 && (
+                          <div className="py-20 text-center border-2 border-dashed rounded-[2.5rem] border-slate-100">
+                             <Target className="w-12 h-12 text-slate-100 mx-auto mb-4" />
+                             <p className="text-xs font-black uppercase text-slate-200">No nodes in pipeline</p>
+                          </div>
+                        )}
                      </div>
-                     <div className="pt-12 flex justify-center">
-                        <button onClick={handleGenerate} className="px-20 py-8 bg-slate-900 text-white rounded-[2.5rem] font-black text-2xl uppercase tracking-tighter flex items-center gap-6 shadow-2xl hover:scale-[1.02] active:scale-95 transition-all">
-                           <Sparkles className="w-8 h-8 text-yellow-400" /> Synthesis Suite
-                        </button>
-                     </div>
+                     {suiteIntents.length > 0 && (
+                        <div className="pt-12 flex justify-center">
+                           <button onClick={handleGenerate} className="px-20 py-8 bg-slate-900 text-white rounded-[2.5rem] font-black text-2xl uppercase tracking-tighter flex items-center gap-6 shadow-2xl hover:scale-[1.02] active:scale-95 transition-all">
+                              <Sparkles className="w-8 h-8 text-yellow-400" /> Synthesis Suite
+                           </button>
+                        </div>
+                     )}
                   </div>
                </div>
                {editingContainerIdx !== null && (
                  <div className="fixed inset-0 z-[100] flex items-center justify-center p-8 bg-slate-900/60 backdrop-blur-sm">
-                    <div className="bg-white w-full max-w-xl rounded-[3rem] shadow-2xl p-12 relative">
+                    <div className="bg-white w-full max-w-xl rounded-[3rem] shadow-2xl p-12 relative animate-in zoom-in">
                        <button onClick={() => setEditingContainerIdx(null)} className="absolute top-8 right-8 text-slate-300 hover:text-slate-900"><XCircle className="w-8 h-8" /></button>
-                       <h3 className="text-3xl font-black uppercase italic mb-8">Unit Architect</h3>
+                       <h3 className="text-3xl font-black uppercase italic mb-8">Unit Refinement</h3>
                        <div className="space-y-6">
                           <div>
-                            <label className="text-[10px] font-black uppercase text-slate-400 mb-2 block">Instructional Focus</label>
+                            <label className="text-[10px] font-black uppercase text-slate-400 mb-2 block">Pedagogical Guardrails</label>
                             <textarea 
-                              className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold text-xs"
+                              className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold text-xs min-h-[100px]"
                               value={suiteIntents[editingContainerIdx].specificInstructions || ''}
                               onChange={e => updateIntent(editingContainerIdx, { specificInstructions: e.target.value })}
-                              placeholder="e.g. Focus on Chapter 4: Photosynthesis..."
+                              placeholder="e.g. Prioritize thermodynamic laws..."
                             />
                           </div>
                           <div className="grid grid-cols-2 gap-4">
@@ -445,9 +459,9 @@ const App: React.FC = () => {
                <header className="mb-16 flex justify-between items-end">
                   <div>
                     <h2 className="text-6xl font-black uppercase tracking-tighter italic">Unit Archive</h2>
-                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Materialized {currentBulkSet.length} units for: {formData.topic}</p>
+                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Materialized {currentBulkSet.length} custom units for {formData.topic}</p>
                   </div>
-                  <button onClick={() => setMode(AppMode.GENERATOR)} className="px-8 py-3 bg-slate-100 rounded-2xl font-black text-[10px] uppercase">New Architect</button>
+                  <button onClick={() => setMode(AppMode.GENERATOR)} className="px-8 py-3 bg-slate-100 rounded-2xl font-black text-[10px] uppercase shadow-sm">New Architect Session</button>
                </header>
                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                   {currentBulkSet.map((ws) => (
@@ -456,28 +470,28 @@ const App: React.FC = () => {
                            <span className="px-3 py-1 bg-slate-50 border rounded text-[8px] font-black uppercase text-slate-400 block w-fit mb-4">{ws.documentType}</span>
                            <h3 className="text-2xl font-black uppercase italic mb-8 line-clamp-2">{ws.title}</h3>
                         </div>
-                        <button onClick={() => { setWorksheet(ws); setMode(AppMode.WORKSHEET); }} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg active:scale-95 transition-all">Inspect Unit</button>
+                        <button onClick={() => { setWorksheet(ws); setMode(AppMode.WORKSHEET); }} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg active:scale-95 transition-all">Inspect Node</button>
                      </div>
                   ))}
                </div>
             </div>
           ) : mode === AppMode.SETTINGS ? (
             <div className="max-w-4xl mx-auto py-12">
-               <header className="mb-12 border-b pb-8"><h2 className="text-5xl font-black uppercase italic italic">Identity Portal</h2></header>
+               <header className="mb-12 border-b pb-8"><h2 className="text-5xl font-black uppercase italic">Branding Portal</h2></header>
                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                   <div className="space-y-6">
-                     <div className="space-y-2"><label className="text-[10px] font-black uppercase text-slate-400">Organization Identity</label><input className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold" value={branding.institutionName} onChange={e => { const n = {...branding, institutionName: e.target.value}; setBranding(n); localStorage.setItem('institutional_branding', JSON.stringify(n)); }} /></div>
-                     <div className="space-y-2"><label className="text-[10px] font-black uppercase text-slate-400">Instructor Name</label><input className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold" value={branding.instructorName} onChange={e => { const n = {...branding, instructorName: e.target.value}; setBranding(n); localStorage.setItem('institutional_branding', JSON.stringify(n)); }} /></div>
-                     <div className="space-y-2"><label className="text-[10px] font-black uppercase text-slate-400">Google Client ID</label><input className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold" value={branding.googleClientId || ''} placeholder="Client ID for cloud syncing" onChange={e => { const n = {...branding, googleClientId: e.target.value}; setBranding(n); localStorage.setItem('institutional_branding', JSON.stringify(n)); }} /></div>
+                     <div className="space-y-2"><label className="text-[10px] font-black uppercase text-slate-400">Institutional Identity</label><input className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold" value={branding.institutionName} onChange={e => { const n = {...branding, institutionName: e.target.value}; setBranding(n); localStorage.setItem('institutional_branding', JSON.stringify(n)); }} /></div>
+                     <div className="space-y-2"><label className="text-[10px] font-black uppercase text-slate-400">Instructor Signature</label><input className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold" value={branding.instructorName} onChange={e => { const n = {...branding, instructorName: e.target.value}; setBranding(n); localStorage.setItem('institutional_branding', JSON.stringify(n)); }} /></div>
+                     <div className="space-y-2"><label className="text-[10px] font-black uppercase text-slate-400">Cloud Auth Key (G-Drive)</label><input className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold" value={branding.googleClientId || ''} placeholder="OAuth 2.0 Client ID" onChange={e => { const n = {...branding, googleClientId: e.target.value}; setBranding(n); localStorage.setItem('institutional_branding', JSON.stringify(n)); }} /></div>
                      <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase text-slate-400">Logo Signature</label>
-                        <button onClick={() => logoInputRef.current?.click()} className="w-full p-4 border-2 border-dashed rounded-2xl font-black text-[10px] uppercase flex items-center justify-center gap-2">
-                          {uploadingLogo ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />} Institutional Asset
+                        <label className="text-[10px] font-black uppercase text-slate-400">Academy Asset (Logo)</label>
+                        <button onClick={() => logoInputRef.current?.click()} className="w-full p-4 border-2 border-dashed rounded-2xl font-black text-[10px] uppercase flex items-center justify-center gap-2 hover:border-slate-900 transition-colors">
+                          {uploadingLogo ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />} Select Signature Resource
                         </button>
                         <input type="file" ref={logoInputRef} className="hidden" accept="image/*" onChange={handleLogoUpload} />
                      </div>
                   </div>
-                  <div className="p-8 bg-slate-900 rounded-[2.5rem] text-white flex flex-col items-center justify-center text-center"><Globe className="w-12 h-12 mb-6" /><h3 className="text-2xl font-black uppercase italic">Global Identity</h3><p className="text-white/40 text-[10px] font-bold uppercase mt-4">Settings persist across all instrument nodes.</p></div>
+                  <div className="p-8 bg-slate-900 rounded-[2.5rem] text-white flex flex-col items-center justify-center text-center"><Globe className="w-12 h-12 mb-6 text-blue-400" /><h3 className="text-2xl font-black uppercase italic">Global Sync</h3><p className="text-white/40 text-[10px] font-bold uppercase mt-4">Identity assets are automatically materialized onto every generated unit.</p></div>
                </div>
             </div>
           ) : mode === AppMode.QUIZ && worksheet ? (
@@ -486,8 +500,8 @@ const App: React.FC = () => {
             <div className="animate-in fade-in">
                <WorksheetView worksheet={worksheet} theme={branding.defaultTheme} showKey={showTeacherKey} onUpdate={setWorksheet} onLaunchQuiz={() => setMode(AppMode.QUIZ)} onSaveSuccess={fetchUserContent} />
                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-white/95 p-3 rounded-full shadow-2xl border border-slate-100 z-[90] no-print backdrop-blur-md">
-                  <button onClick={() => setShowTeacherKey(!showTeacherKey)} className={`px-8 py-3 rounded-full font-black text-[10px] uppercase tracking-widest transition-all ${showTeacherKey ? 'bg-red-600 text-white' : 'bg-slate-50 border hover:bg-slate-100'}`}>{showTeacherKey ? 'Hide Solutions' : 'Solution Registry'}</button>
-                  <button onClick={() => setMode(AppMode.QUIZ)} className="px-8 py-3 bg-blue-600 text-white rounded-full font-black text-[10px] uppercase tracking-widest shadow-xl flex items-center gap-2 hover:bg-blue-700 transition-all"><PlayCircle className="w-4 h-4" /> Interactive Quiz</button>
+                  <button onClick={() => setShowTeacherKey(!showTeacherKey)} className={`px-8 py-3 rounded-full font-black text-[10px] uppercase tracking-widest transition-all ${showTeacherKey ? 'bg-red-600 text-white' : 'bg-slate-50 border hover:bg-slate-100'}`}>{showTeacherKey ? 'Hide Solution' : 'Solution Registry'}</button>
+                  <button onClick={() => setMode(AppMode.QUIZ)} className="px-8 py-3 bg-blue-600 text-white rounded-full font-black text-[10px] uppercase tracking-widest shadow-xl flex items-center gap-2 hover:bg-blue-700 transition-all"><PlayCircle className="w-4 h-4" /> Practice Quiz</button>
                   <button onClick={() => setMode(AppMode.GENERATOR)} className="px-8 py-3 bg-slate-900 text-white rounded-full font-black text-[10px] uppercase tracking-widest shadow-xl">Architect Studio</button>
                </div>
             </div>
