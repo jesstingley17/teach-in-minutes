@@ -36,6 +36,13 @@ export enum LearnerProfile {
   REMEDIAL = 'REMEDIAL'
 }
 
+export interface Collection {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: number;
+}
+
 export interface AssessmentBlueprint {
   id: string;
   title: string;
@@ -65,6 +72,7 @@ export interface Course {
 
 export interface Worksheet {
   id?: string;
+  collectionId?: string; // Link to a container
   courseId?: string;
   moduleId?: string;
   title: string;
@@ -89,7 +97,8 @@ export enum AppMode {
   WORKSHEET = 'WORKSHEET',
   QUIZ = 'QUIZ',
   COURSE_MANAGER = 'COURSE_MANAGER',
-  BLUEPRINT_DASHBOARD = 'BLUEPRINT_DASHBOARD'
+  BLUEPRINT_DASHBOARD = 'BLUEPRINT_DASHBOARD',
+  COLLECTIONS_VIEW = 'COLLECTIONS_VIEW'
 }
 
 export enum ThemeType {
