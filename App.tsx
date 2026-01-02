@@ -8,7 +8,7 @@ import {
   BookOpen, XCircle, Library, Eye,
   Languages, BrainCircuit, Star, Zap, Construction, Target,
   Settings, Layers, ChevronRight, Layout, Palette, Trash2, ArrowLeft,
-  Settings2, Sliders, ListChecks, Hash, Gauge, Microscope, Copy, Check
+  Settings2, Sliders, ListChecks, Hash, Gauge, Microscope, Copy, Check, User
 } from 'lucide-react';
 
 const DEFAULT_BRANDING: BrandingConfig = {
@@ -20,11 +20,8 @@ const DEFAULT_BRANDING: BrandingConfig = {
 };
 
 const App: React.FC = () => {
-  const [user, setUser] = useState<any>(null);
-  const [isGuest, setIsGuest] = useState(false);
+  const [user, setUser] = useState<{ id: string; name: string } | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
 
   const [mode, setMode] = useState<AppMode>(AppMode.ONBOARDING);
   const [worksheet, setWorksheet] = useState<Worksheet | null>(null);
@@ -61,29 +58,30 @@ const App: React.FC = () => {
   const guidelineInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem('institutional_branding');
-    if (saved) setBranding(JSON.parse(saved));
-    const session = localStorage.getItem('local_user_session');
-    if (session) setUser(JSON.parse(session));
-    if (localStorage.getItem('isGuest') === 'true') setIsGuest(true);
+    // Initialize Local Session
+    const savedBranding = localStorage.getItem('institutional_branding');
+    if (savedBranding) setBranding(JSON.parse(savedBranding));
+
+    let localUser = localStorage.getItem('local_user_profile');
+    if (!localUser) {
+      const newUser = { id: 'local-arch-' + Math.random().toString(36).substr(2, 4), name: 'Local Architect' };
+      localStorage.setItem('local_user_profile', JSON.stringify(newUser));
+      setUser(newUser);
+    } else {
+      setUser(JSON.parse(localUser));
+    }
+    
     setAuthLoading(false);
   }, []);
 
-  useEffect(() => { if (user || isGuest) fetchUserContent(); }, [user, isGuest]);
+  useEffect(() => { 
+    if (user) fetchUserContent(); 
+  }, [user]);
 
   const fetchUserContent = async () => {
-    const prefix = user?.email || 'guest';
+    const prefix = user?.id || 'local-arch';
     const local = JSON.parse(localStorage.getItem(`archive_${prefix}`) || '[]');
     setSavedWorksheets(local);
-  };
-
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (email === 'jtingley@anchorchartpro.com' && password === 'Password123') {
-      const u = { email, id: 'j-pro' };
-      setUser(u);
-      localStorage.setItem('local_user_session', JSON.stringify(u));
-    }
   };
 
   const handleGenerate = async () => {
@@ -105,11 +103,12 @@ const App: React.FC = () => {
         savedAt: Date.now() + i
       }));
 
-      const prefix = user?.email || 'guest';
+      const prefix = user?.id || 'local-arch';
       const local = JSON.parse(localStorage.getItem(`archive_${prefix}`) || '[]');
-      localStorage.setItem(`archive_${prefix}`, JSON.stringify([...processed, ...local].slice(0, 50)));
+      const updatedArchive = [...processed, ...local].slice(0, 50);
+      localStorage.setItem(`archive_${prefix}`, JSON.stringify(updatedArchive));
 
-      setSavedWorksheets(prev => [...processed, ...prev]);
+      setSavedWorksheets(updatedArchive);
       setCurrentBulkSet(processed);
       setMode(AppMode.BULK_REVIEW);
     } catch (e: any) { 
@@ -154,26 +153,9 @@ const App: React.FC = () => {
     setSuiteIntents(n);
   };
 
-  if (authLoading) return null;
-
-  if (!user && !isGuest) return (
-    <div className="min-h-screen flex bg-slate-50 font-sans">
-      <div className="hidden lg:flex flex-1 items-center justify-center p-20 bg-slate-900">
-        <div className="max-w-lg text-center">
-          <GraduationCap className="w-16 h-16 text-blue-500 mx-auto mb-8" />
-          <h1 className="text-7xl font-black text-white uppercase italic mb-6">Blueprint<span className="text-blue-500 not-italic">Pro</span></h1>
-          <p className="text-slate-400 text-xl font-medium">Sovereign Architecture for high-volume classroom delivery.</p>
-        </div>
-      </div>
-      <div className="w-full lg:w-[500px] bg-white p-12 flex flex-col justify-center">
-        <form onSubmit={handleLogin} className="space-y-6">
-          <h2 className="text-4xl font-black uppercase tracking-tighter mb-8">Faculty Portal</h2>
-          <input required type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Faculty Email" className="w-full p-4 bg-slate-50 border-2 rounded-xl outline-none focus:border-slate-900 font-bold" />
-          <input required type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Passkey" className="w-full p-4 bg-slate-50 border-2 rounded-xl outline-none focus:border-slate-900 font-bold" />
-          <button className="w-full py-4 bg-slate-900 text-white rounded-xl font-black uppercase tracking-widest hover:bg-slate-800 transition-all">Establish Session</button>
-          <button type="button" onClick={() => { setIsGuest(true); localStorage.setItem('isGuest', 'true'); }} className="w-full py-4 bg-white border-2 text-slate-500 rounded-xl font-black uppercase tracking-widest text-[10px]">Guest Access</button>
-        </form>
-      </div>
+  if (authLoading) return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <Loader2 className="w-12 h-12 animate-spin text-slate-300" />
     </div>
   );
 
@@ -198,10 +180,22 @@ const App: React.FC = () => {
                    <span className="text-[8px] font-bold text-slate-300 uppercase">{ws.documentType}</span>
                 </div>
               ))}
+              {savedWorksheets.length === 0 && (
+                <div className="py-12 text-center">
+                  <Library className="w-8 h-8 text-slate-100 mx-auto mb-2" />
+                  <p className="text-[8px] font-black uppercase text-slate-200">Archive Empty</p>
+                </div>
+              )}
            </div>
         </div>
-        <div className="p-6 border-t border-slate-50">
-           <button onClick={() => setMode(AppMode.SETTINGS)} className="w-full p-3 rounded-xl flex items-center gap-3 font-black text-[9px] uppercase text-slate-400 hover:text-slate-900">
+        <div className="p-6 border-t border-slate-50 space-y-2">
+           <div className="flex items-center gap-3 px-3 py-2 mb-2 bg-slate-50 rounded-xl">
+              <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center">
+                <User className="w-3.5 h-3.5 text-slate-400" />
+              </div>
+              <span className="text-[9px] font-black uppercase text-slate-500">{user?.name}</span>
+           </div>
+           <button onClick={() => setMode(AppMode.SETTINGS)} className="w-full p-3 rounded-xl flex items-center gap-3 font-black text-[9px] uppercase text-slate-400 hover:text-slate-900 transition-colors">
               <Settings className="w-4 h-4" /> Branding Portal
            </button>
         </div>
@@ -227,7 +221,7 @@ const App: React.FC = () => {
                     <h2 className="text-6xl font-black uppercase tracking-tighter">Suite Architect</h2>
                     <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-2 italic">Construct high-volume instructional sets</p>
                   </div>
-                  <button onClick={() => setMode(AppMode.ONBOARDING)} className="text-slate-300 hover:text-slate-900 flex items-center gap-2 font-black text-[10px] uppercase tracking-widest"><ArrowLeft className="w-4 h-4" /> Back to Intake</button>
+                  <button onClick={() => setMode(AppMode.ONBOARDING)} className="text-slate-300 hover:text-slate-900 flex items-center gap-2 font-black text-[10px] uppercase tracking-widest transition-colors"><ArrowLeft className="w-4 h-4" /> Back to Intake</button>
                </header>
 
                <div className="grid grid-cols-12 gap-12">
@@ -314,7 +308,7 @@ const App: React.FC = () => {
                {editingContainerIdx !== null && (
                  <div className="fixed inset-0 z-[100] flex items-center justify-center p-8 bg-slate-900/60 backdrop-blur-sm">
                     <div className="bg-white w-full max-w-xl rounded-[3rem] shadow-2xl p-12 relative animate-in zoom-in duration-300">
-                       <button onClick={() => setEditingContainerIdx(null)} className="absolute top-8 right-8 text-slate-300 hover:text-slate-900"><XCircle className="w-8 h-8" /></button>
+                       <button onClick={() => setEditingContainerIdx(null)} className="absolute top-8 right-8 text-slate-300 hover:text-slate-900 transition-colors"><XCircle className="w-8 h-8" /></button>
                        <h3 className="text-4xl font-black uppercase tracking-tighter mb-8 italic">Instrument Node Config</h3>
                        <div className="space-y-8">
                           <div className="space-y-4">
@@ -335,7 +329,7 @@ const App: React.FC = () => {
                           <div className="space-y-3">
                              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Architect's Guidance</label>
                              <textarea 
-                                className="w-full p-4 bg-slate-50 border-2 rounded-2xl text-xs font-bold min-h-[100px]" 
+                                className="w-full p-4 bg-slate-50 border-2 rounded-2xl text-xs font-bold min-h-[100px] focus:border-slate-900 outline-none transition-all" 
                                 placeholder="Specific instructions for this node..."
                                 value={suiteIntents[editingContainerIdx].specificInstructions || ''}
                                 onChange={(e) => updateIntent(editingContainerIdx, {specificInstructions: e.target.value})}
@@ -410,6 +404,36 @@ const App: React.FC = () => {
                         </button>
                      </div>
                   ))}
+               </div>
+            </div>
+          ) : mode === AppMode.SETTINGS ? (
+            <div className="max-w-4xl mx-auto py-12">
+               <header className="mb-12 flex justify-between items-end border-b pb-8">
+                  <div>
+                    <h2 className="text-5xl font-black uppercase tracking-tighter italic">Branding Portal</h2>
+                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-2 italic">Customize your output signature</p>
+                  </div>
+                  <button onClick={() => setMode(AppMode.ONBOARDING)} className="px-6 py-2 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest">Exit Portal</button>
+               </header>
+               
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                  <div className="space-y-6">
+                     <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Institution Name</label>
+                        <input className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold" value={branding.institutionName} onChange={e => { const n = {...branding, institutionName: e.target.value}; setBranding(n); localStorage.setItem('institutional_branding', JSON.stringify(n)); }} />
+                     </div>
+                     <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Instructor Identity</label>
+                        <input className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold" value={branding.instructorName} onChange={e => { const n = {...branding, instructorName: e.target.value}; setBranding(n); localStorage.setItem('institutional_branding', JSON.stringify(n)); }} />
+                     </div>
+                  </div>
+                  <div className="p-8 bg-slate-900 rounded-[2.5rem] text-white flex flex-col items-center justify-center text-center">
+                     <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center mb-6">
+                        <Palette className="w-8 h-8" />
+                     </div>
+                     <h3 className="text-2xl font-black uppercase italic tracking-tight">Identity Suite</h3>
+                     <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest mt-2">These settings are applied globally to every instrument materialized in this browser session.</p>
+                  </div>
                </div>
             </div>
           ) : worksheet && (
