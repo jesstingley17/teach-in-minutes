@@ -23,43 +23,47 @@ export interface GenerationOptions {
 
 /**
  * Analyzes uploaded content to identify the underlying lesson structure.
- * Uses gemini-3-flash-preview for high-speed, accurate structural mapping.
+ * Upgraded to Gemini 3 Pro with Thinking Budget for maximum structural accuracy.
  */
 export async function analyzeCurriculum(source: { text?: string; file?: { data: string; mimeType: string } }): Promise<LessonStructure[]> {
   const ai = getAI();
   const parts: any[] = [];
   
   if (source.file) {
-    parts.push({ inlineData: { data: source.file.data, mimeType: source.file.mimeType } });
+    parts.push({ 
+      inlineData: { 
+        data: source.file.data, 
+        mimeType: source.file.mimeType 
+      } 
+    });
   }
 
   const prompt = `
-    Analyze this educational document (textbook chapter, syllabus, or course notes). 
-    Break it down into a logical sequence of distinct lessons or modules.
+    ROLE: Academic Syllabus Auditor & Curriculum Engineer.
     
-    CRITICAL RULES:
-    1. Identify every unique topic that warrants a separate quiz or homework.
-    2. If the document has numbered chapters or sections, use those.
-    3. If it's a dense text, segment it into coherent learning units.
+    TASK: Perform a deep structural audit of the provided material. 
+    You must extract EVERY distinct instructional unit, chapter, or lesson.
     
-    For each unit identified, provide:
-    - title: A short, descriptive name for the lesson.
-    - summary: A 2-3 sentence overview of the core instructional objectives.
-    - suggestedQuestions: A few key concepts that should be tested.
+    STRICT REQUIREMENTS:
+    1. If the document lists chapters (e.g., "Chapter 1", "Section 2.3"), extract them precisely.
+    2. If the document is raw text/notes, identify the thematic shifts where a new lesson begins.
+    3. You MUST generate at least one unit for every logically distinct topic found.
+    4. Provide a pedagogically sound title and a 3-sentence objective for each.
     
-    Return a JSON array of these units. Ensure you find at least as many lessons as are explicitly defined in the document structure.
+    OUTPUT: A JSON array of lesson objects. Do not omit any detected sections.
   `;
   
   if (source.text) {
-    parts.push({ text: `Source Text Context: ${source.text}` });
+    parts.push({ text: `Source Context: ${source.text}` });
   }
   parts.push({ text: prompt });
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3-pro-preview",
       contents: { parts },
       config: {
+        thinkingConfig: { thinkingBudget: 2000 },
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
@@ -76,18 +80,20 @@ export async function analyzeCurriculum(source: { text?: string; file?: { data: 
       }
     });
 
-    const result = JSON.parse(response.text || '[]');
+    const text = response.text || '[]';
+    // Clean potential markdown artifacts if they exist (though responseMimeType should handle it)
+    const cleanedJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    const result = JSON.parse(cleanedJson);
     return Array.isArray(result) ? result : [];
   } catch (error) {
-    console.error("Curriculum Analysis Failed:", error);
-    // Return an empty array so the UI can handle the failure gracefully
+    console.error("Deep Curriculum Analysis Failed:", error);
     return [];
   }
 }
 
 export async function generateDoodles(topic: string, gradeLevel: string): Promise<string[]> {
   const ai = getAI();
-  const prompt = `Create a set of simple, minimalist black and white line-art sketches that a teacher might draw on a worksheet for ${gradeLevel} students about the topic: ${topic}. These should be educational icons or symbols.`;
+  const prompt = `Simple minimalist line-art sketches of educational icons for ${topic} at ${gradeLevel} level. Black and white.`;
   
   try {
     const response = await ai.models.generateContent({
@@ -113,7 +119,6 @@ export async function generateDoodles(topic: string, gradeLevel: string): Promis
     
     return imageUrls;
   } catch (error) {
-    console.error("Doodle Generation Failure:", error);
     return [];
   }
 }
@@ -132,35 +137,26 @@ export async function generateWorksheet(options: GenerationOptions): Promise<Wor
   }
 
   const promptText = `
-    ROLE: Academic Architect.
-    TASK: Generate EXACTLY ${containerIntents.length} unique educational units for: "${topic}".
+    TASK: Materialize ${containerIntents.length} distinct educational instruments.
     
-    STRICT MAPPING REQUIREMENT:
-    You are generating a sequence of units. Each unit corresponds to a specific part of the curriculum.
-    Do NOT duplicate content between units. Use the 'specificInstructions' field for each unit to determine its boundaries.
+    CURRICULUM MAPPING:
+    Each unit below is a separate 'node' in the course. 
+    Strictly follow the 'FOCUS' instructions for each node to ensure 100% coverage without overlap.
     
-    GLOBAL PARAMETERS:
-    - SUBJECT: ${topic}
-    - GRADE LEVEL: ${educationalLevel}
-    - AUDIENCE: ${audienceCategory}
-    - LANGUAGE: ${language}
-    ${rawText ? `- CONTEXTUAL CONTENT: ${rawText}` : ''}
+    SUBJECT: ${topic}
+    LEVEL: ${educationalLevel}
+    AUDIENCE: ${audienceCategory}
+    ${rawText ? `ANCHOR CONTENT: ${rawText}` : ''}
     
-    FORMATTING:
-    - Use KaTeX/MathJax formatting for all equations. Wrap symbols in '$'. Example: $\\sum_{i=1}^{n} i$.
-    
-    SUITE ARCHITECTURE:
+    UNITS TO GENERATE:
     ${containerIntents.map((intent, i) => `
-    UNIT ${i+1}:
-    - TYPE: ${intent.type}
-    - FOCUS: ${intent.specificInstructions || 'Complete coverage'}
+    [UNIT ${i+1}]
+    - FOCUS: ${intent.specificInstructions}
     - DEPTH: ${intent.depth}
-    - PROFILE: ${intent.profile}
-    - LAYOUT: ${intent.layout}
-    - QUESTIONS: ${Object.entries(intent.questionCounts).map(([t, c]) => `${c}x ${t}`).join(', ')}
+    - STRUCTURE: ${Object.entries(intent.questionCounts).map(([t, c]) => `${c}x ${t}`).join(', ')}
     `).join('\n')}
 
-    Return a JSON ARRAY of ${containerIntents.length} Worksheet objects.
+    Format math with '$'. Return a JSON ARRAY of Worksheet objects.
   `;
   
   parts.push({ text: promptText });
@@ -210,7 +206,7 @@ export async function generateWorksheet(options: GenerationOptions): Promise<Wor
       visualMetadata: { layoutStyle: containerIntents[i].layout }
     })) as Worksheet[];
   } catch (error: any) { 
-    console.error("Worksheet Generation Error:", error);
+    console.error("Master Suite Synthesis Error:", error);
     throw error; 
   }
 }
