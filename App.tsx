@@ -11,7 +11,7 @@ import {
   Languages, BrainCircuit, Star, Zap, Construction, Target,
   Settings, Layers, ChevronRight, Layout, Palette, Trash2, ArrowLeft,
   Settings2, Sliders, ListChecks, Hash, Gauge, Microscope, Copy, Check, User, PlayCircle,
-  Image as ImageIcon
+  Image as ImageIcon, Globe
 } from 'lucide-react';
 
 const DEFAULT_BRANDING: BrandingConfig = {
@@ -35,7 +35,7 @@ const App: React.FC = () => {
   const [showTeacherKey, setShowTeacherKey] = useState(false);
   const [editingContainerIdx, setEditingContainerIdx] = useState<number | null>(null);
   
-  const [branding, setBranding] = useState<BrandingConfig>(DEFAULT_BRANDING);
+  const [branding, setBranding] = useState<BrandingConfig & { googleClientId?: string }>(DEFAULT_BRANDING);
   
   const [suiteIntents, setSuiteIntents] = useState<any[]>([
     { 
@@ -100,14 +100,15 @@ const App: React.FC = () => {
       setBranding(updatedBranding);
       localStorage.setItem('institutional_branding', JSON.stringify(updatedBranding));
     } catch (err) {
-      alert("Logo upload failed. Ensure environment credentials are set.");
+      console.error("Upload Error:", err);
+      alert("Asset sync failed. Check cloud storage configuration.");
     } finally {
       setUploadingLogo(false);
     }
   };
 
   const handleGenerate = async () => {
-    if (!formData.topic) { alert("Please specify a topic for the suite."); return; }
+    if (!formData.topic) { alert("Specify a topic to proceed."); return; }
     setLoading(true);
     try {
       const results = await generateWorksheet({ 
@@ -134,7 +135,7 @@ const App: React.FC = () => {
       setCurrentBulkSet(processed);
       setMode(AppMode.BULK_REVIEW);
     } catch (e: any) { 
-      alert(e.message);
+      alert(e.message || "Synthesis engine encountered an error.");
     } finally { setLoading(false); }
   };
 
@@ -183,21 +184,21 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex bg-white font-sans text-slate-900">
-      <aside className="w-72 border-r border-slate-100 hidden lg:flex flex-col fixed h-full z-20 no-print">
+      <aside className="w-72 border-r border-slate-100 hidden lg:flex flex-col fixed h-full z-20 no-print bg-white">
         <div className="p-8 border-b border-slate-50">
            <div className="flex items-center gap-3 mb-10 cursor-pointer" onClick={() => setMode(AppMode.ONBOARDING)}>
               <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-white"><GraduationCap className="w-6 h-6" /></div>
               <h1 className="font-black text-lg uppercase tracking-tight">Blueprint Pro</h1>
            </div>
-           <button onClick={() => { setMode(AppMode.GENERATOR); setSuiteIntents([{ id: Math.random().toString(), type: DocumentType.HOMEWORK, profile: LearnerProfile.GENERAL, layout: LayoutStyle.LAID_TEACH, depth: CognitiveDepth.UNDERSTANDING, questionCounts: { [QuestionType.MCQ]: 5 } }]); }} className="w-full py-3 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg">
+           <button onClick={() => { setMode(AppMode.GENERATOR); setSuiteIntents([{ id: Math.random().toString(), type: DocumentType.HOMEWORK, profile: LearnerProfile.GENERAL, layout: LayoutStyle.LAID_TEACH, depth: CognitiveDepth.UNDERSTANDING, questionCounts: { [QuestionType.MCQ]: 5 } }]); }} className="w-full py-3 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg active:scale-95 transition-transform">
               <Plus className="w-4 h-4 inline mr-2" /> New Workspace
            </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
            <h3 className="text-[9px] font-black uppercase tracking-widest text-slate-400">Library Archive</h3>
            <div className="space-y-1">
               {savedWorksheets.map(ws => (
-                <div key={ws.id} className="p-3 rounded-xl hover:bg-slate-50 cursor-pointer group" onClick={() => { setWorksheet(ws); setMode(AppMode.WORKSHEET); }}>
+                <div key={ws.id} className="p-3 rounded-xl hover:bg-slate-50 cursor-pointer group transition-colors" onClick={() => { setWorksheet(ws); setMode(AppMode.WORKSHEET); }}>
                    <span className="text-[10px] font-black uppercase block truncate group-hover:text-blue-600">{ws.title}</span>
                    <span className="text-[8px] font-bold text-slate-300 uppercase">{ws.documentType}</span>
                 </div>
@@ -232,16 +233,16 @@ const App: React.FC = () => {
                   <Sparkles className="absolute -top-2 -right-2 w-8 h-8 text-yellow-400 animate-pulse" />
                </div>
                <div className="max-w-sm">
-                 <h2 className="text-4xl font-black uppercase tracking-tighter">Materializing {suiteIntents.length} Instruments</h2>
-                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-2">Factory Synthesis active: Architecting unique pedagogical nodes for {formData.topic}...</p>
+                 <h2 className="text-4xl font-black uppercase tracking-tighter italic">Materializing Suite</h2>
+                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-2">Synthesizing pedagogical nodes for {formData.topic}...</p>
                </div>
             </div>
           ) : mode === AppMode.ONBOARDING ? (
             <div className="max-w-4xl mx-auto py-12 animate-in fade-in duration-700">
                <div className="text-center mb-16">
                   <Library className="w-12 h-12 mx-auto mb-6 text-slate-900" />
-                  <h2 className="text-5xl font-black uppercase tracking-tighter italic">Source Intake</h2>
-                  <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Onboard Master Files for Synthesis</p>
+                  <h2 className="text-5xl font-black uppercase tracking-tighter italic">Intake System</h2>
+                  <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Prepare Academic Scaffolding</p>
                </div>
                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="p-12 border-2 border-slate-100 rounded-[3rem] hover:border-slate-900 transition-all cursor-pointer group flex flex-col justify-between" onClick={() => guidelineInputRef.current?.click()}>
@@ -253,18 +254,18 @@ const App: React.FC = () => {
                      }} />
                      <div>
                         <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center mb-8 group-hover:bg-slate-900 group-hover:text-white transition-all"><CloudUpload className="w-6 h-6" /></div>
-                        <h3 className="text-3xl font-black uppercase tracking-tight">Source-Anchored</h3>
-                        <p className="text-slate-400 font-bold text-xs mt-4 leading-relaxed uppercase">Generate from your textbooks or slides.</p>
+                        <h3 className="text-3xl font-black uppercase tracking-tight">Cloud Anchored</h3>
+                        <p className="text-slate-400 font-bold text-xs mt-4 leading-relaxed uppercase">Ingest textbook segments or slides.</p>
                      </div>
-                     <span className="text-[9px] font-black uppercase tracking-widest text-slate-900 mt-12 flex items-center gap-2">Attach & Synthesize <ChevronRight className="w-3 h-3" /></span>
+                     <span className="text-[9px] font-black uppercase tracking-widest text-slate-900 mt-12 flex items-center gap-2">Attach & Build <ChevronRight className="w-3 h-3" /></span>
                   </div>
                   <div className="p-12 bg-slate-900 rounded-[3rem] flex flex-col justify-between cursor-pointer hover:bg-slate-800 transition-all" onClick={() => setMode(AppMode.GENERATOR)}>
                      <div>
                         <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center mb-8 text-white"><Zap className="w-6 h-6" /></div>
-                        <h3 className="text-3xl font-black uppercase tracking-tight text-white">Direct Synthesis</h3>
-                        <p className="text-white/40 font-bold text-xs mt-4 leading-relaxed uppercase">Build from concepts or prompts.</p>
+                        <h3 className="text-3xl font-black uppercase tracking-tight text-white">Direct Design</h3>
+                        <p className="text-white/40 font-bold text-xs mt-4 leading-relaxed uppercase">Build from raw conceptual prompts.</p>
                      </div>
-                     <span className="text-[9px] font-black uppercase tracking-widest text-white/60 mt-12 flex items-center gap-2">Proceed Clean <ChevronRight className="w-3 h-3" /></span>
+                     <span className="text-[9px] font-black uppercase tracking-widest text-white/60 mt-12 flex items-center gap-2">Start Synthesis <ChevronRight className="w-3 h-3" /></span>
                   </div>
                </div>
             </div>
@@ -272,49 +273,45 @@ const App: React.FC = () => {
             <div className="max-w-6xl mx-auto py-4">
                <header className="mb-12 flex justify-between items-end">
                   <div>
-                    <h2 className="text-6xl font-black uppercase tracking-tighter">Suite Architect</h2>
-                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-2 italic">Construct high-volume instructional sets</p>
+                    <h2 className="text-6xl font-black uppercase tracking-tighter">Instrument Architect</h2>
+                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-2 italic">Constructing high-volume instructional sets</p>
                   </div>
-                  <button onClick={() => setMode(AppMode.ONBOARDING)} className="text-slate-300 hover:text-slate-900 flex items-center gap-2 font-black text-[10px] uppercase tracking-widest transition-colors"><ArrowLeft className="w-4 h-4" /> Back to Intake</button>
+                  <button onClick={() => setMode(AppMode.ONBOARDING)} className="text-slate-300 hover:text-slate-900 flex items-center gap-2 font-black text-[10px] uppercase tracking-widest transition-colors"><ArrowLeft className="w-4 h-4" /> Back to Library</button>
                </header>
-
                <div className="grid grid-cols-12 gap-12">
                   <div className="col-span-12 lg:col-span-4 space-y-8">
                      <div className="bg-slate-50 p-8 rounded-[2.5rem] space-y-6">
-                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2"><Microscope className="w-3.5 h-3.5" /> Global Topic</h3>
-                        <input className="w-full p-5 bg-white border-2 rounded-2xl font-black text-xl outline-none focus:border-slate-900" placeholder="e.g. Shakespearean Sonnets" value={formData.topic} onChange={e => setFormData({...formData, topic: e.target.value})} />
-                        
+                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2"><Microscope className="w-3.5 h-3.5" /> Core Concept</h3>
+                        <input className="w-full p-5 bg-white border-2 rounded-2xl font-black text-xl outline-none focus:border-slate-900" placeholder="e.g. Molecular Biology" value={formData.topic} onChange={e => setFormData({...formData, topic: e.target.value})} />
                         <div className="space-y-4 pt-4 border-t">
-                           <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Quick Suite Templates</label>
+                           <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Suite Presets</label>
                            <div className="grid grid-cols-1 gap-3">
                               <button onClick={() => applyTemplate('assessment_pack')} className="w-full p-4 bg-white border-2 border-slate-100 hover:border-slate-900 rounded-2xl text-left transition-all group">
-                                 <span className="text-[9px] font-black uppercase text-slate-900 block mb-1">Assessment Pack</span>
-                                 <span className="text-[8px] font-bold text-slate-400 uppercase">Homework + Quiz + Exam</span>
+                                 <span className="text-[9px] font-black uppercase text-slate-900 block mb-1">Standard Pack</span>
+                                 <span className="text-[8px] font-bold text-slate-400 uppercase italic">HW + Quiz + Formal Exam</span>
                               </button>
                               <button onClick={() => applyTemplate('differentiation_pack')} className="w-full p-4 bg-white border-2 border-slate-100 hover:border-slate-900 rounded-2xl text-left transition-all group">
-                                 <span className="text-[9px] font-black uppercase text-slate-900 block mb-1">Differentiation Suite</span>
-                                 <span className="text-[8px] font-bold text-slate-400 uppercase">Standard + ESL + Gifted</span>
+                                 <span className="text-[9px] font-black uppercase text-slate-900 block mb-1">Inclusion Suite</span>
+                                 <span className="text-[8px] font-bold text-slate-400 uppercase italic">General + ESL + Gifted</span>
                               </button>
                            </div>
                         </div>
                      </div>
                   </div>
-
                   <div className="col-span-12 lg:col-span-8 space-y-6">
                      <div className="flex justify-between items-center px-4">
-                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Workspace ({suiteIntents.length} Nodes)</h3>
+                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Node Workspace ({suiteIntents.length} Units)</h3>
                         <button onClick={addContainer} className="flex items-center gap-2 px-6 py-2 bg-slate-900 text-white rounded-full font-black text-[10px] uppercase tracking-widest transition-all shadow-md hover:scale-105 active:scale-95">
-                           <Plus className="w-4 h-4" /> Add Instrument
+                           <Plus className="w-4 h-4" /> Add Node
                         </button>
                      </div>
-
                      <div className="space-y-4">
                         {suiteIntents.map((intent, i) => (
                            <div key={intent.id} className="group relative bg-white border-2 border-slate-100 rounded-[2rem] p-8 hover:border-slate-900 transition-all shadow-sm">
                               <div className="flex justify-between items-start mb-6">
                                  <div className="flex items-center gap-4">
                                     <div className="w-8 h-8 bg-slate-900 text-white rounded-lg flex items-center justify-center font-black text-xs">{i + 1}</div>
-                                    <h4 className="font-black text-lg uppercase tracking-tight">{intent.type}</h4>
+                                    <h4 className="font-black text-lg uppercase tracking-tight italic">{intent.type}</h4>
                                  </div>
                                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
                                     <button onClick={() => setEditingContainerIdx(i)} className="p-2 text-slate-400 hover:text-blue-600"><Settings2 className="w-4 h-4" /></button>
@@ -322,185 +319,96 @@ const App: React.FC = () => {
                                  </div>
                               </div>
                               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                                 <div className="space-y-2">
-                                    <label className="text-[8px] font-black uppercase tracking-widest text-slate-400">Scaffolding</label>
-                                    <select className="w-full p-3 bg-slate-50 border-2 rounded-xl font-bold text-[10px] outline-none" value={intent.profile} onChange={e => updateIntent(i, {profile: e.target.value})}>
-                                       {Object.values(LearnerProfile).map(v => <option key={v} value={v}>{v.replace('_', ' ')}</option>)}
-                                    </select>
+                                 <div className="space-y-1"><label className="text-[8px] font-black uppercase text-slate-400">Profile</label>
+                                    <select className="w-full p-2 bg-slate-50 border rounded-lg font-bold text-[10px]" value={intent.profile} onChange={e => updateIntent(i, {profile: e.target.value})}>{Object.values(LearnerProfile).map(v => <option key={v} value={v}>{v}</option>)}</select>
                                  </div>
-                                 <div className="space-y-2">
-                                    <label className="text-[8px] font-black uppercase tracking-widest text-slate-400">Layout</label>
-                                    <select className="w-full p-3 bg-slate-50 border-2 rounded-xl font-bold text-[10px] outline-none" value={intent.layout} onChange={e => updateIntent(i, {layout: e.target.value})}>
-                                       {Object.values(LayoutStyle).map(v => <option key={v} value={v}>{v.replace('_', ' ')}</option>)}
-                                    </select>
+                                 <div className="space-y-1"><label className="text-[8px] font-black uppercase text-slate-400">Layout</label>
+                                    <select className="w-full p-2 bg-slate-50 border rounded-lg font-bold text-[10px]" value={intent.layout} onChange={e => updateIntent(i, {layout: e.target.value})}>{Object.values(LayoutStyle).map(v => <option key={v} value={v}>{v}</option>)}</select>
                                  </div>
-                                 <div className="space-y-2">
-                                    <label className="text-[8px] font-black uppercase tracking-widest text-slate-400">Cognitive Depth</label>
-                                    <select className="w-full p-3 bg-slate-50 border-2 rounded-xl font-bold text-[10px] outline-none" value={intent.depth} onChange={e => updateIntent(i, {depth: e.target.value})}>
-                                       {Object.values(CognitiveDepth).map(v => <option key={v} value={v}>{v}</option>)}
-                                    </select>
+                                 <div className="space-y-1"><label className="text-[8px] font-black uppercase text-slate-400">Depth</label>
+                                    <select className="w-full p-2 bg-slate-50 border rounded-lg font-bold text-[10px]" value={intent.depth} onChange={e => updateIntent(i, {depth: e.target.value})}>{Object.values(CognitiveDepth).map(v => <option key={v} value={v}>{v}</option>)}</select>
                                  </div>
-                                 <div className="flex flex-col justify-end">
-                                    <button onClick={() => setEditingContainerIdx(i)} className="w-full p-3 bg-blue-50 text-blue-700 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-blue-100 flex items-center justify-center gap-2">
-                                       <Sliders className="w-3 h-3" /> Config Items
-                                    </button>
-                                 </div>
+                                 <button onClick={() => setEditingContainerIdx(i)} className="mt-auto p-2 bg-blue-50 text-blue-700 rounded-lg font-black text-[9px] uppercase hover:bg-blue-100">Configure Distribution</button>
                               </div>
                            </div>
                         ))}
                      </div>
-
                      <div className="pt-12 flex justify-center">
                         <button onClick={handleGenerate} className="px-20 py-8 bg-slate-900 text-white rounded-[2.5rem] font-black text-2xl uppercase tracking-tighter flex items-center gap-6 shadow-2xl hover:scale-[1.02] active:scale-95 transition-all">
-                           <Sparkles className="w-8 h-8 text-yellow-400" /> Bulk Materialize Suite
+                           <Sparkles className="w-8 h-8 text-yellow-400" /> Materialize Master Suite
                         </button>
                      </div>
                   </div>
                </div>
-
-               {/* Configuration Modal */}
                {editingContainerIdx !== null && (
                  <div className="fixed inset-0 z-[100] flex items-center justify-center p-8 bg-slate-900/60 backdrop-blur-sm">
-                    <div className="bg-white w-full max-w-xl rounded-[3rem] shadow-2xl p-12 relative animate-in zoom-in duration-300">
-                       <button onClick={() => setEditingContainerIdx(null)} className="absolute top-8 right-8 text-slate-300 hover:text-slate-900 transition-colors"><XCircle className="w-8 h-8" /></button>
-                       <h3 className="text-4xl font-black uppercase tracking-tighter mb-8 italic">Instrument Node Config</h3>
-                       <div className="space-y-8">
-                          <div className="space-y-4">
-                             <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2"><ListChecks className="w-4 h-4" /> Item Distribution</h4>
-                             <div className="grid grid-cols-2 gap-4">
-                                {Object.values(QuestionType).map(type => (
-                                   <div key={type} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border">
-                                      <span className="text-[10px] font-black uppercase text-slate-600">{type.replace('_', ' ')}</span>
-                                      <div className="flex items-center gap-3">
-                                         <button onClick={() => updateQuestionCount(editingContainerIdx, type, Math.max(0, (suiteIntents[editingContainerIdx].questionCounts[type] || 0) - 1))} className="w-6 h-6 flex items-center justify-center border rounded font-black">-</button>
-                                         <span className="font-black text-xs">{suiteIntents[editingContainerIdx].questionCounts[type] || 0}</span>
-                                         <button onClick={() => updateQuestionCount(editingContainerIdx, type, (suiteIntents[editingContainerIdx].questionCounts[type] || 0) + 1)} className="w-6 h-6 flex items-center justify-center border rounded font-black">+</button>
-                                      </div>
-                                   </div>
-                                ))}
+                    <div className="bg-white w-full max-w-xl rounded-[3rem] shadow-2xl p-12 relative">
+                       <button onClick={() => setEditingContainerIdx(null)} className="absolute top-8 right-8 text-slate-300 hover:text-slate-900"><XCircle className="w-8 h-8" /></button>
+                       <h3 className="text-3xl font-black uppercase italic mb-8">Node Configuration</h3>
+                       <div className="grid grid-cols-2 gap-4">
+                          {Object.values(QuestionType).map(type => (
+                             <div key={type} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border">
+                                <span className="text-[10px] font-black uppercase text-slate-600">{type}</span>
+                                <div className="flex items-center gap-3">
+                                   <button onClick={() => updateQuestionCount(editingContainerIdx, type, Math.max(0, (suiteIntents[editingContainerIdx].questionCounts[type] || 0) - 1))} className="w-6 h-6 flex border rounded">-</button>
+                                   <span className="font-black text-xs">{suiteIntents[editingContainerIdx].questionCounts[type] || 0}</span>
+                                   <button onClick={() => updateQuestionCount(editingContainerIdx, type, (suiteIntents[editingContainerIdx].questionCounts[type] || 0) + 1)} className="w-6 h-6 flex border rounded">+</button>
+                                </div>
                              </div>
-                          </div>
-                          <div className="space-y-3">
-                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Architect's Guidance</label>
-                             <textarea 
-                                className="w-full p-4 bg-slate-50 border-2 rounded-2xl text-xs font-bold min-h-[100px] focus:border-slate-900 outline-none transition-all" 
-                                placeholder="Specific instructions for this node..."
-                                value={suiteIntents[editingContainerIdx].specificInstructions || ''}
-                                onChange={(e) => updateIntent(editingContainerIdx, {specificInstructions: e.target.value})}
-                             />
-                          </div>
+                          ))}
                        </div>
                     </div>
                  </div>
                )}
             </div>
           ) : mode === AppMode.BULK_REVIEW ? (
-            <div className="max-w-6xl mx-auto py-12 animate-in fade-in duration-700">
+            <div className="max-w-6xl mx-auto py-12 animate-in fade-in">
                <header className="mb-16 flex justify-between items-end">
                   <div>
-                    <h2 className="text-6xl font-black uppercase tracking-tighter italic">Factory Line</h2>
-                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-2 italic">Diversified Suite Complete for: {formData.topic}</p>
+                    <h2 className="text-6xl font-black uppercase tracking-tighter italic">Suite Archive</h2>
+                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Complete set materialized for: {formData.topic}</p>
                   </div>
-                  <button onClick={() => setMode(AppMode.GENERATOR)} className="px-8 py-3 bg-slate-100 hover:bg-slate-200 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all">New Architecture</button>
+                  <button onClick={() => setMode(AppMode.GENERATOR)} className="px-8 py-3 bg-slate-100 rounded-2xl font-black text-[10px] uppercase">Return to Architect</button>
                </header>
-
                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                  {currentBulkSet.map((ws, i) => (
-                     <div key={ws.id} className="bg-white border-2 border-slate-100 rounded-[2.5rem] p-10 flex flex-col justify-between hover:border-slate-900 transition-all group animate-in slide-in-from-bottom-8">
+                  {currentBulkSet.map((ws) => (
+                     <div key={ws.id} className="bg-white border-2 border-slate-100 rounded-[2.5rem] p-10 flex flex-col justify-between hover:border-slate-900 transition-all group">
                         <div>
-                           <div className="flex justify-between items-start mb-8">
-                              <div className="w-12 h-12 border-2 border-slate-900 rounded-xl flex items-center justify-center font-black">
-                                 {i + 1}
-                              </div>
-                              <span className="px-3 py-1 bg-slate-50 border border-slate-100 rounded text-[8px] font-black uppercase tracking-widest text-slate-400">{ws.documentType}</span>
-                           </div>
-                           <h3 className="text-2xl font-black uppercase tracking-tight mb-4 group-hover:text-blue-600 transition-colors">{ws.title}</h3>
-                           <div className="flex flex-wrap gap-2 mb-8">
-                              <span className="text-[7px] font-black uppercase text-slate-300 border px-2 py-0.5 rounded">{ws.learnerProfile}</span>
-                              <span className="text-[7px] font-black uppercase text-slate-300 border px-2 py-0.5 rounded">{ws.visualMetadata?.layoutStyle}</span>
-                              <span className="text-[7px] font-black uppercase text-slate-300 border px-2 py-0.5 rounded">{ws.questions.length} Items</span>
-                           </div>
+                           <span className="px-3 py-1 bg-slate-50 border rounded text-[8px] font-black uppercase text-slate-400 block w-fit mb-4">{ws.documentType}</span>
+                           <h3 className="text-2xl font-black uppercase italic mb-8">{ws.title}</h3>
                         </div>
-                        <button onClick={() => { setWorksheet(ws); setMode(AppMode.WORKSHEET); }} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95">
-                           <Eye className="w-4 h-4" /> Inspect Node
-                        </button>
+                        <button onClick={() => { setWorksheet(ws); setMode(AppMode.WORKSHEET); }} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase">Inspect Unit</button>
                      </div>
                   ))}
                </div>
             </div>
           ) : mode === AppMode.SETTINGS ? (
             <div className="max-w-4xl mx-auto py-12">
-               <header className="mb-12 flex justify-between items-end border-b pb-8">
-                  <div>
-                    <h2 className="text-5xl font-black uppercase tracking-tighter italic">Branding Portal</h2>
-                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-2 italic">Customize your output signature</p>
-                  </div>
-                  <button onClick={() => setMode(AppMode.ONBOARDING)} className="px-6 py-2 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest">Exit Portal</button>
-               </header>
-               
+               <header className="mb-12 border-b pb-8"><h2 className="text-5xl font-black uppercase italic italic">Identity Management</h2></header>
                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                   <div className="space-y-6">
+                     <div className="space-y-2"><label className="text-[10px] font-black uppercase text-slate-400">Academy Identity</label><input className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold" value={branding.institutionName} onChange={e => { const n = {...branding, institutionName: e.target.value}; setBranding(n); localStorage.setItem('institutional_branding', JSON.stringify(n)); }} /></div>
+                     <div className="space-y-2"><label className="text-[10px] font-black uppercase text-slate-400">Instructor Identity</label><input className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold" value={branding.instructorName} onChange={e => { const n = {...branding, instructorName: e.target.value}; setBranding(n); localStorage.setItem('institutional_branding', JSON.stringify(n)); }} /></div>
+                     <div className="space-y-2"><label className="text-[10px] font-black uppercase text-slate-400">Google Client ID (For Cloud Sync)</label><input className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold" value={branding.googleClientId || ''} placeholder="Ex: 12345-abc.apps.googleusercontent.com" onChange={e => { const n = {...branding, googleClientId: e.target.value}; setBranding(n); localStorage.setItem('institutional_branding', JSON.stringify(n)); }} /></div>
                      <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Institution Name</label>
-                        <input className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold" value={branding.institutionName} onChange={e => { const n = {...branding, institutionName: e.target.value}; setBranding(n); localStorage.setItem('institutional_branding', JSON.stringify(n)); }} />
-                     </div>
-                     <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Instructor Identity</label>
-                        <input className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold" value={branding.instructorName} onChange={e => { const n = {...branding, instructorName: e.target.value}; setBranding(n); localStorage.setItem('institutional_branding', JSON.stringify(n)); }} />
-                     </div>
-                     <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Institution Logo</label>
-                        <div className="flex items-center gap-4">
-                          <button 
-                            onClick={() => logoInputRef.current?.click()}
-                            disabled={uploadingLogo}
-                            className={`flex-1 p-4 border-2 border-dashed rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${uploadingLogo ? 'bg-slate-50 text-slate-300' : 'bg-white hover:border-slate-900'}`}
-                          >
-                            {uploadingLogo ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
-                            {branding.logoUrl ? 'Update Logo Asset' : 'Attach Signature Logo'}
-                          </button>
-                          {branding.logoUrl && (
-                            <div className="w-16 h-16 bg-slate-50 rounded-2xl border flex items-center justify-center p-2">
-                               <img src={branding.logoUrl} className="max-w-full max-h-full object-contain" alt="Preview" />
-                            </div>
-                          )}
-                        </div>
+                        <label className="text-[10px] font-black uppercase text-slate-400">Academy Logo</label>
+                        <button onClick={() => logoInputRef.current?.click()} className="w-full p-4 border-2 border-dashed rounded-2xl font-black text-[10px] uppercase flex items-center justify-center gap-2">
+                          {uploadingLogo ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />} Signature Asset
+                        </button>
                         <input type="file" ref={logoInputRef} className="hidden" accept="image/*" onChange={handleLogoUpload} />
-                        <p className="text-[8px] font-bold text-slate-300 uppercase mt-1">Cloud Sync: Supported via Vercel Blob</p>
                      </div>
                   </div>
-                  <div className="p-8 bg-slate-900 rounded-[2.5rem] text-white flex flex-col items-center justify-center text-center">
-                     <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center mb-6">
-                        <Palette className="w-8 h-8" />
-                     </div>
-                     <h3 className="text-2xl font-black uppercase italic tracking-tight">Identity Suite</h3>
-                     <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest mt-2">These settings are applied globally to every instrument materialized in this browser session.</p>
-                  </div>
+                  <div className="p-8 bg-slate-900 rounded-[2.5rem] text-white flex flex-col items-center justify-center text-center"><Globe className="w-12 h-12 mb-6" /><h3 className="text-2xl font-black uppercase">Cloud Ready</h3><p className="text-white/40 text-[10px] font-bold uppercase mt-4">Identity configurations persist across units.</p></div>
                </div>
             </div>
           ) : mode === AppMode.QUIZ && worksheet ? (
-            <QuizView 
-              worksheet={worksheet} 
-              theme={branding.defaultTheme} 
-              onExit={() => setMode(AppMode.WORKSHEET)} 
-              isMathMode={true} 
-            />
+            <QuizView worksheet={worksheet} theme={branding.defaultTheme} onExit={() => setMode(AppMode.WORKSHEET)} isMathMode={true} />
           ) : worksheet && (
-            <div className="animate-in fade-in duration-500">
-               <WorksheetView 
-                  worksheet={worksheet} 
-                  theme={branding.defaultTheme} 
-                  showKey={showTeacherKey} 
-                  onUpdate={setWorksheet} 
-                  onLaunchQuiz={() => setMode(AppMode.QUIZ)}
-               />
-               <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-white/90 p-3 rounded-full shadow-2xl border border-slate-100 z-[90] no-print backdrop-blur-md">
-                  <button onClick={() => setShowTeacherKey(!showTeacherKey)} className={`px-8 py-3 rounded-full font-black text-[10px] uppercase tracking-widest transition-all ${showTeacherKey ? 'bg-red-600 text-white' : 'bg-slate-50 border hover:bg-slate-100'}`}>
-                    {showTeacherKey ? 'Hide Solution' : 'Solution Registry'}
-                  </button>
-                  <button onClick={() => setMode(AppMode.QUIZ)} className="px-8 py-3 bg-blue-600 text-white rounded-full font-black text-[10px] uppercase tracking-widest shadow-xl flex items-center gap-2 hover:bg-blue-700 transition-all">
-                    <PlayCircle className="w-4 h-4" /> Practice Mode
-                  </button>
+            <div className="animate-in fade-in">
+               <WorksheetView worksheet={worksheet} theme={branding.defaultTheme} showKey={showTeacherKey} onUpdate={setWorksheet} onLaunchQuiz={() => setMode(AppMode.QUIZ)} onSaveSuccess={fetchUserContent} />
+               <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-white/95 p-3 rounded-full shadow-2xl border border-slate-100 z-[90] no-print backdrop-blur-md">
+                  <button onClick={() => setShowTeacherKey(!showTeacherKey)} className={`px-8 py-3 rounded-full font-black text-[10px] uppercase tracking-widest transition-all ${showTeacherKey ? 'bg-red-600 text-white' : 'bg-slate-50 border hover:bg-slate-100'}`}>{showTeacherKey ? 'Hide Solution' : 'Solution Registry'}</button>
+                  <button onClick={() => setMode(AppMode.QUIZ)} className="px-8 py-3 bg-blue-600 text-white rounded-full font-black text-[10px] uppercase tracking-widest shadow-xl flex items-center gap-2 hover:bg-blue-700 transition-all"><PlayCircle className="w-4 h-4" /> Interactive Practice</button>
                   <button onClick={() => setMode(AppMode.GENERATOR)} className="px-8 py-3 bg-slate-900 text-white rounded-full font-black text-[10px] uppercase tracking-widest shadow-xl">Architect Studio</button>
                </div>
             </div>

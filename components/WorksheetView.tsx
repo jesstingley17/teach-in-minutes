@@ -5,11 +5,12 @@ import { LatexRenderer } from './LatexRenderer.tsx';
 import { SketchyBorderBox, DoodlePalette, HelenCharacter } from './HandwritingElements.tsx';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+import { authenticateGoogleDrive, uploadToGoogleDrive } from '../services/googleDriveService.ts';
 import { 
   Edit3, Check, Landmark, Printer, Loader2, ShieldCheck, PenTool, QrCode, BookOpen, Star,
   Settings, X, Monitor, Maximize, FileText, Type as TypeIcon, Hash, ChevronRight,
   Palette, MousePointer2, Briefcase, GraduationCap as CapIcon, PlayCircle, Trash2, PlusCircle,
-  Save
+  Save, Cloud
 } from 'lucide-react';
 
 interface WorksheetViewProps {
@@ -18,6 +19,7 @@ interface WorksheetViewProps {
   showKey?: boolean;
   onUpdate?: (worksheet: Worksheet) => void;
   onLaunchQuiz?: () => void;
+  onSaveSuccess?: () => void;
 }
 
 interface PrintSettings {
@@ -34,13 +36,16 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
   worksheet: initialWorksheet, 
   showKey = false, 
   onUpdate,
-  onLaunchQuiz
+  onLaunchQuiz,
+  onSaveSuccess
 }) => {
   const [worksheet, setWorksheet] = useState<Worksheet>(initialWorksheet);
   const [isBuilderMode, setIsBuilderMode] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isUploadingToDrive, setIsUploadingToDrive] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [driveSuccess, setDriveSuccess] = useState(false);
   const [doodles, setDoodles] = useState<string[]>([]);
   const [selectedStyle, setSelectedStyle] = useState<HandwritingStyle>('Classic');
   
@@ -84,7 +89,6 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
 
   const handleSaveDraft = () => {
     setIsSaving(true);
-    // Mimic processing for high-end feel
     setTimeout(() => {
       try {
         const localUser = JSON.parse(localStorage.getItem('local_user_profile') || '{"id":"local-arch"}');
@@ -103,6 +107,7 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
         
         localStorage.setItem(`archive_${prefix}`, JSON.stringify(updatedArchive.slice(0, 50)));
         setSaveSuccess(true);
+        if (onSaveSuccess) onSaveSuccess();
         setTimeout(() => setSaveSuccess(false), 3000);
       } catch (err) {
         console.error("Save Draft Failed:", err);
@@ -113,58 +118,82 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
     }, 600);
   };
 
+  const generatePdfBlob = async (): Promise<Blob | null> => {
+    const element = document.getElementById('worksheet-content');
+    if (!element) return null;
+
+    const canvas = await html2canvas(element, { 
+      scale: printSettings.scale, 
+      useCORS: true, 
+      backgroundColor: '#ffffff',
+      logging: false
+    });
+    
+    const imgData = canvas.toDataURL('image/png');
+    const isPortrait = printSettings.orientation === 'portrait';
+    const pdf = new jsPDF({ 
+      orientation: isPortrait ? 'portrait' : 'landscape', 
+      unit: 'mm', 
+      format: 'a4' 
+    });
+
+    const pdfWidth = isPortrait ? 210 : 297;
+    const imgWidth = pdfWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    
+    pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+
+    if (printSettings.customFooter || printSettings.showPageNumbers) {
+      pdf.setFontSize(8);
+      pdf.setTextColor(150, 150, 150);
+      const pdfHeight = isPortrait ? 297 : 210;
+      const footerY = pdfHeight - 10;
+      if (printSettings.customFooter) pdf.text(printSettings.customFooter, 15, footerY);
+      if (printSettings.showPageNumbers) pdf.text(`Architectural Node: ${worksheet.id?.slice(0, 6).toUpperCase()} | Page 1`, pdfWidth - 60, footerY);
+    }
+
+    return pdf.output('blob');
+  };
+
   const handleExportPDF = async () => {
     setIsExporting(true);
     setIsPrintModalOpen(false);
-    
     try {
-      const element = document.getElementById('worksheet-content');
-      if (!element) return;
-
-      const canvas = await html2canvas(element, { 
-        scale: printSettings.scale, 
-        useCORS: true, 
-        backgroundColor: '#ffffff',
-        logging: false
-      });
-      
-      const imgData = canvas.toDataURL('image/png');
-      const isPortrait = printSettings.orientation === 'portrait';
-      
-      const pdf = new jsPDF({ 
-        orientation: isPortrait ? 'portrait' : 'landscape', 
-        unit: 'mm', 
-        format: 'a4' 
-      });
-
-      const pdfWidth = isPortrait ? 210 : 297;
-      const pdfHeight = isPortrait ? 297 : 210;
-      
-      const imgWidth = pdfWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      
-      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
-
-      if (printSettings.customFooter || printSettings.showPageNumbers) {
-        pdf.setFontSize(8);
-        pdf.setTextColor(150, 150, 150);
-        const footerY = pdfHeight - 10;
-        
-        if (printSettings.customFooter) {
-          pdf.text(printSettings.customFooter, 15, footerY);
-        }
-        
-        if (printSettings.showPageNumbers) {
-          pdf.text(`Architectural Node: ${worksheet.id?.slice(0, 6).toUpperCase()} | Page 1`, pdfWidth - 60, footerY);
-        }
-      }
-
-      pdf.save(`${worksheet.title.replace(/\s+/g, '_')}_${printSettings.orientation}.pdf`);
+      const blob = await generatePdfBlob();
+      if (!blob) return;
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${worksheet.title.replace(/\s+/g, '_')}.pdf`;
+      a.click();
+      window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error("PDF Export failed", err);
       alert("Materialization failed. Check console for details.");
     } finally { 
       setIsExporting(false); 
+    }
+  };
+
+  const handleUploadToDrive = async () => {
+    setIsUploadingToDrive(true);
+    try {
+      // Get custom client ID if set in branding
+      const branding = JSON.parse(localStorage.getItem('institutional_branding') || '{}');
+      const token = await authenticateGoogleDrive(branding.googleClientId);
+      const blob = await generatePdfBlob();
+      if (!blob) throw new Error("Could not generate worksheet artifact.");
+      
+      const filename = `${worksheet.title.replace(/\s+/g, '_')}_${Date.now()}.pdf`;
+      await uploadToGoogleDrive(token, blob, filename);
+      
+      setDriveSuccess(true);
+      setTimeout(() => setDriveSuccess(false), 4000);
+    } catch (err: any) {
+      console.error("Drive Integration Failure:", err);
+      alert(err.message || "Failed to sync with Google Drive.");
+    } finally {
+      setIsUploadingToDrive(false);
     }
   };
 
@@ -178,7 +207,6 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
   const deleteOption = (questionId: string, optionIndex: number) => {
     const question = worksheet.questions.find(q => q.id === questionId);
     if (!question || !question.options) return;
-    
     const newOptions = question.options.filter((_, i) => i !== optionIndex);
     updateQuestion(questionId, { options: newOptions });
   };
@@ -186,7 +214,6 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
   const addOption = (questionId: string) => {
     const question = worksheet.questions.find(q => q.id === questionId);
     if (!question) return;
-    
     const newOptions = [...(question.options || []), "New Option"];
     updateQuestion(questionId, { options: newOptions });
   };
@@ -220,10 +247,10 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
       {/* Top Action Bar */}
       <div className="absolute -top-20 left-0 right-0 flex flex-col gap-3 no-print z-[60]">
         <div className="flex justify-between items-center px-4 py-2 bg-white border border-slate-100 rounded-xl shadow-sm">
-          <div className="flex gap-4 items-center">
+          <div className="flex gap-4 items-center flex-wrap">
             <button onClick={() => setIsBuilderMode(!isBuilderMode)} className={`flex items-center gap-2 px-4 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all ${isBuilderMode ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-50 hover:bg-slate-100'}`}>
               {isBuilderMode ? <Check className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}
-              {isBuilderMode ? 'Commit Synthesis' : 'Enter Architect Mode'}
+              {isBuilderMode ? 'Commit Changes' : 'Architect Mode'}
             </button>
             <button 
               onClick={handleSaveDraft} 
@@ -231,7 +258,15 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
               className={`flex items-center gap-2 px-4 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all shadow-sm ${saveSuccess ? 'bg-green-100 text-green-700 border-green-200' : 'bg-slate-50 hover:bg-slate-100 text-slate-700'}`}
             >
               {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : saveSuccess ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-              {saveSuccess ? 'Archive Updated' : 'Save as Draft'}
+              {saveSuccess ? 'Archive Updated' : 'Save Draft'}
+            </button>
+            <button 
+              onClick={handleUploadToDrive}
+              disabled={isUploadingToDrive}
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all shadow-sm ${driveSuccess ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-slate-50 hover:bg-slate-100 text-slate-700'}`}
+            >
+              {isUploadingToDrive ? <Loader2 className="w-4 h-4 animate-spin" /> : driveSuccess ? <Check className="w-4 h-4" /> : <Cloud className="w-4 h-4" />}
+              {driveSuccess ? 'Synced to Drive' : 'Sync to Drive'}
             </button>
             <button onClick={() => setIsPrintModalOpen(true)} disabled={isExporting} className="flex items-center gap-2 px-4 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest bg-slate-900 text-white shadow-sm disabled:opacity-50 hover:bg-slate-800">
               {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
@@ -239,12 +274,12 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
             </button>
             {onLaunchQuiz && (
               <button onClick={onLaunchQuiz} className="flex items-center gap-2 px-4 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest bg-blue-50 text-blue-700 hover:bg-blue-100 transition-all border border-blue-200">
-                <PlayCircle className="w-4 h-4" /> Launch Practice Quiz
+                <PlayCircle className="w-4 h-4" /> Interactive Quiz
               </button>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[8px] font-black uppercase text-slate-300">Handwriting Signature:</span>
+          <div className="flex items-center gap-2 ml-4">
+            <span className="text-[8px] font-black uppercase text-slate-300">Style:</span>
             <div className="flex p-1 bg-slate-100 rounded-lg gap-1">
               {(['Classic', 'Creative', 'Modern', 'Academic'] as HandwritingStyle[]).map(style => (
                 <button 
@@ -265,101 +300,51 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300 no-print">
           <div className="bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl p-12 relative animate-in zoom-in duration-300">
             <button onClick={() => setIsPrintModalOpen(false)} className="absolute top-8 right-8 text-slate-300 hover:text-slate-900 transition-colors"><X className="w-8 h-8" /></button>
-            
             <header className="mb-10">
               <h3 className="text-4xl font-black uppercase tracking-tighter italic flex items-center gap-4">
                 <Settings className="w-8 h-8 text-blue-500" /> Output Config
               </h3>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-2">Final parameter adjustments for physical media</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-2">Final adjustments for physical media</p>
             </header>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
               <div className="space-y-8">
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
-                    <Monitor className="w-3.5 h-3.5" /> Orientation
-                  </label>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2"><Monitor className="w-3.5 h-3.5" /> Orientation</label>
                   <div className="grid grid-cols-2 gap-3">
-                    <button 
-                      onClick={() => setPrintSettings({...printSettings, orientation: 'portrait'})}
-                      className={`py-4 rounded-2xl border-2 font-black text-[10px] uppercase tracking-widest flex flex-col items-center gap-2 transition-all ${printSettings.orientation === 'portrait' ? 'border-slate-900 bg-slate-900 text-white shadow-lg' : 'border-slate-100 hover:border-slate-200'}`}
-                    >
-                      Portrait
-                    </button>
-                    <button 
-                      onClick={() => setPrintSettings({...printSettings, orientation: 'landscape'})}
-                      className={`py-4 rounded-2xl border-2 font-black text-[10px] uppercase tracking-widest flex flex-col items-center gap-2 transition-all ${printSettings.orientation === 'landscape' ? 'border-slate-900 bg-slate-900 text-white shadow-lg' : 'border-slate-100 hover:border-slate-200'}`}
-                    >
-                      Landscape
-                    </button>
+                    <button onClick={() => setPrintSettings({...printSettings, orientation: 'portrait'})} className={`py-4 rounded-2xl border-2 font-black text-[10px] uppercase tracking-widest flex flex-col items-center gap-2 transition-all ${printSettings.orientation === 'portrait' ? 'border-slate-900 bg-slate-900 text-white shadow-lg' : 'border-slate-100 hover:border-slate-200'}`}>Portrait</button>
+                    <button onClick={() => setPrintSettings({...printSettings, orientation: 'landscape'})} className={`py-4 rounded-2xl border-2 font-black text-[10px] uppercase tracking-widest flex flex-col items-center gap-2 transition-all ${printSettings.orientation === 'landscape' ? 'border-slate-900 bg-slate-900 text-white shadow-lg' : 'border-slate-100 hover:border-slate-200'}`}>Landscape</button>
                   </div>
                 </div>
-
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
-                    <Maximize className="w-3.5 h-3.5" /> Resolution Scale
-                  </label>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2"><Maximize className="w-3.5 h-3.5" /> Resolution Scale</label>
                   <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                    <input 
-                      type="range" min="1" max="4" step="0.5" 
-                      value={printSettings.scale} 
-                      onChange={(e) => setPrintSettings({...printSettings, scale: parseFloat(e.target.value)})}
-                      className="flex-1 accent-slate-900"
-                    />
+                    <input type="range" min="1" max="4" step="0.5" value={printSettings.scale} onChange={(e) => setPrintSettings({...printSettings, scale: parseFloat(e.target.value)})} className="flex-1 accent-slate-900"/>
                     <span className="font-black text-xs w-8">{printSettings.scale}x</span>
                   </div>
                 </div>
               </div>
-
               <div className="space-y-8">
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
-                    <FileText className="w-3.5 h-3.5" /> Footer Branding
-                  </label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. Science Department • 2024" 
-                    value={printSettings.customFooter}
-                    onChange={(e) => setPrintSettings({...printSettings, customFooter: e.target.value})}
-                    className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-xs focus:border-slate-900 outline-none transition-all"
-                  />
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2"><FileText className="w-3.5 h-3.5" /> Footer Branding</label>
+                  <input type="text" placeholder="e.g. Science Department • 2024" value={printSettings.customFooter} onChange={(e) => setPrintSettings({...printSettings, customFooter: e.target.value})} className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-xs focus:border-slate-900 outline-none transition-all"/>
                 </div>
-
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
-                    <Hash className="w-3.5 h-3.5" /> Metadata Toggles
-                  </label>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2"><Hash className="w-3.5 h-3.5" /> Metadata Toggles</label>
                   <div className="space-y-2">
-                    <button 
-                      onClick={() => setPrintSettings({...printSettings, showPageNumbers: !printSettings.showPageNumbers})}
-                      className="w-full p-3 flex items-center justify-between bg-slate-50 hover:bg-slate-100 rounded-xl transition-colors"
-                    >
+                    <button onClick={() => setPrintSettings({...printSettings, showPageNumbers: !printSettings.showPageNumbers})} className="w-full p-3 flex items-center justify-between bg-slate-50 hover:bg-slate-100 rounded-xl transition-colors">
                       <span className="text-[10px] font-bold uppercase text-slate-600">Page Numbering</span>
-                      <div className={`w-10 h-5 rounded-full relative transition-colors ${printSettings.showPageNumbers ? 'bg-green-500' : 'bg-slate-300'}`}>
-                        <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${printSettings.showPageNumbers ? 'left-6' : 'left-1'}`} />
-                      </div>
+                      <div className={`w-10 h-5 rounded-full relative transition-colors ${printSettings.showPageNumbers ? 'bg-green-500' : 'bg-slate-300'}`}><div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${printSettings.showPageNumbers ? 'left-6' : 'left-1'}`} /></div>
                     </button>
-                    <button 
-                      onClick={() => setPrintSettings({...printSettings, showMetadata: !printSettings.showMetadata})}
-                      className="w-full p-3 flex items-center justify-between bg-slate-50 hover:bg-slate-100 rounded-xl transition-colors"
-                    >
+                    <button onClick={() => setPrintSettings({...printSettings, showMetadata: !printSettings.showMetadata})} className="w-full p-3 flex items-center justify-between bg-slate-50 hover:bg-slate-100 rounded-xl transition-colors">
                       <span className="text-[10px] font-bold uppercase text-slate-600">Node Signature</span>
-                      <div className={`w-10 h-5 rounded-full relative transition-colors ${printSettings.showMetadata ? 'bg-green-500' : 'bg-slate-300'}`}>
-                        <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${printSettings.showMetadata ? 'left-6' : 'left-1'}`} />
-                      </div>
+                      <div className={`w-10 h-5 rounded-full relative transition-colors ${printSettings.showMetadata ? 'bg-green-500' : 'bg-slate-300'}`}><div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${printSettings.showMetadata ? 'left-6' : 'left-1'}`} /></div>
                     </button>
                   </div>
                 </div>
               </div>
             </div>
-
             <div className="mt-12">
-              <button 
-                onClick={handleExportPDF}
-                className="w-full py-6 bg-slate-900 text-white rounded-[2rem] font-black text-xl uppercase tracking-widest shadow-2xl hover:bg-slate-800 active:scale-95 transition-all flex items-center justify-center gap-4"
-              >
-                <Printer className="w-6 h-6" /> Materialize Suite
-              </button>
+              <button onClick={handleExportPDF} className="w-full py-6 bg-slate-900 text-white rounded-[2rem] font-black text-xl uppercase tracking-widest shadow-2xl hover:bg-slate-800 active:scale-95 transition-all flex items-center justify-center gap-4"><Printer className="w-6 h-6" /> Materialize Suite</button>
             </div>
           </div>
         </div>
@@ -367,7 +352,6 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
 
       {/* Main Worksheet Container */}
       <div id="worksheet-content" className={`${printSettings.orientation === 'landscape' ? 'max-w-[297mm]' : 'max-w-[210mm]'} mx-auto min-h-[297mm] bg-white text-slate-900 overflow-hidden relative border border-slate-200 shadow-2xl transition-all duration-500 ${getStyleClasses()}`}>
-        
         {/* Print Header */}
         <div className={`p-16 border-b-2 border-slate-900 bg-white ${selectedStyle === 'Creative' ? 'border-slate-800' : ''}`}>
            <div className="flex justify-between items-start mb-12">
@@ -379,19 +363,16 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
               </div>
               <div className="text-right">
                  <QrCode className="w-10 h-10 ml-auto mb-4 opacity-20" />
-                 <div className="text-[8px] font-black uppercase tracking-widest opacity-40">Architectural Node: {worksheet.id?.slice(0, 6).toUpperCase()}</div>
+                 <div className="text-[8px] font-black uppercase tracking-widest opacity-40">Node: {worksheet.id?.slice(0, 6).toUpperCase()}</div>
               </div>
            </div>
-
            <div className="flex justify-between items-end gap-12">
               <div className="flex-1">
                  <div className="flex items-center gap-4 mb-3">
                     <span className="px-2 py-1 border border-slate-900 text-[8px] font-black uppercase tracking-widest">{worksheet.documentType}</span>
                     <span className="text-[8px] font-black uppercase tracking-widest opacity-40">{worksheet.educationalLevel}</span>
                  </div>
-                 <h1 className={`text-5xl font-black uppercase tracking-tighter leading-none ${getHeaderFont()}`}>
-                    <EditableField value={worksheet.title} onSave={(v: any) => handleUpdate({...worksheet, title: v})} />
-                 </h1>
+                 <h1 className={`text-5xl font-black uppercase tracking-tighter leading-none ${getHeaderFont()}`}><EditableField value={worksheet.title} onSave={(v: any) => handleUpdate({...worksheet, title: v})} /></h1>
               </div>
               <div className="text-right">
                  <p className="text-[7px] font-black uppercase tracking-widest opacity-40 mb-1">Total Points</p>
@@ -428,36 +409,25 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
                      </ul>
                   </div>
                 </div>
-                <div className="col-span-12 md:col-span-4 flex justify-center items-center">
-                   <HelenCharacter />
-                </div>
+                <div className="col-span-12 md:col-span-4 flex justify-center items-center"><HelenCharacter /></div>
              </div>
            )}
 
            <div className="pt-12 border-t border-slate-100 space-y-16">
-              <h2 className={`text-2xl font-black uppercase tracking-tight flex items-center gap-4 ${getHeaderFont()}`}>
-                 <PenTool className="w-6 h-6" /> Assessment Manifest
-              </h2>
+              <h2 className={`text-2xl font-black uppercase tracking-tight flex items-center gap-4 ${getHeaderFont()}`}><PenTool className="w-6 h-6" /> Assessment Manifest</h2>
               <div className="space-y-16">
                 {worksheet.questions.map((q, idx) => (
                   <div key={q.id}>
                      <div className="flex justify-between items-start mb-6">
                         <div className="flex gap-6 items-start flex-1">
-                           <div className={`w-10 h-10 border-2 border-slate-900 flex items-center justify-center font-black ${selectedStyle === 'Creative' ? 'rounded-full border-dashed rotate-6' : ''}`}>
-                              <span className="text-lg">{idx + 1}</span>
-                           </div>
-                           <div className="flex-1">
-                              <h3 className={`text-xl font-bold text-slate-900 leading-tight ${selectedStyle === 'Modern' ? 'tracking-tight' : ''}`}>
-                                 <EditableField multiline value={q.question} onSave={(v: any) => updateQuestion(q.id, {question: v})} />
-                              </h3>
-                           </div>
+                           <div className={`w-10 h-10 border-2 border-slate-900 flex items-center justify-center font-black ${selectedStyle === 'Creative' ? 'rounded-full border-dashed rotate-6' : ''}`}><span className="text-lg">{idx + 1}</span></div>
+                           <div className="flex-1"><h3 className={`text-xl font-bold text-slate-900 leading-tight ${selectedStyle === 'Modern' ? 'tracking-tight' : ''}`}><EditableField multiline value={q.question} onSave={(v: any) => updateQuestion(q.id, {question: v})} /></h3></div>
                         </div>
                         <div className="ml-8 text-center min-w-[50px]">
                            <span className="text-[7px] font-black text-slate-300 uppercase block">PTS</span>
                            <input type="number" className="font-black text-slate-900 w-full text-center text-lg bg-transparent" value={q.points || 0} onChange={(e) => updateQuestion(q.id, { points: parseInt(e.target.value) || 0 })} />
                         </div>
                      </div>
-
                      <div className="ml-16">
                         {q.options && (
                            <div className="space-y-4">
@@ -465,28 +435,15 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
                                 {q.options.map((opt, i) => (
                                    <div key={i} className={`flex items-center gap-3 p-3 border border-slate-100 bg-slate-50/50 group/opt ${selectedStyle === 'Creative' ? 'rounded-2xl rotate-[0.5deg]' : ''}`}>
                                       <span className="w-6 h-6 flex-shrink-0 flex items-center justify-center border border-slate-200 text-[8px] font-black text-slate-300">{String.fromCharCode(65 + i)}</span>
-                                      <div className="flex-1">
-                                        <EditableField value={opt} onSave={(v: any) => { const n = [...(q.options||[])]; n[i]=v; updateQuestion(q.id, {options: n}); }} className="text-xs font-medium" />
-                                      </div>
+                                      <div className="flex-1"><EditableField value={opt} onSave={(v: any) => { const n = [...(q.options||[])]; n[i]=v; updateQuestion(q.id, {options: n}); }} className="text-xs font-medium" /></div>
                                       {isBuilderMode && (
-                                        <button 
-                                          onClick={() => deleteOption(q.id, i)}
-                                          className="p-1 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover/opt:opacity-100 no-print"
-                                          title="Delete Option"
-                                        >
-                                          <Trash2 className="w-3.5 h-3.5" />
-                                        </button>
+                                        <button onClick={() => deleteOption(q.id, i)} className="p-1 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover/opt:opacity-100 no-print" title="Delete Option"><Trash2 className="w-3.5 h-3.5" /></button>
                                       )}
                                    </div>
                                 ))}
                              </div>
                              {isBuilderMode && (
-                               <button 
-                                 onClick={() => addOption(q.id)}
-                                 className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-slate-100 rounded-xl text-[10px] font-black uppercase text-slate-300 hover:border-blue-300 hover:text-blue-500 transition-all no-print"
-                               >
-                                 <PlusCircle className="w-4 h-4" /> Add Option
-                               </button>
+                               <button onClick={() => addOption(q.id)} className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-slate-100 rounded-xl text-[10px] font-black uppercase text-slate-300 hover:border-blue-300 hover:text-blue-500 transition-all no-print"><PlusCircle className="w-4 h-4" /> Add Option</button>
                              )}
                            </div>
                         )}
@@ -502,23 +459,19 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
                 ))}
               </div>
            </div>
-
-           {/* Doodles Rendering */}
            {doodles.map((d, i) => (
              <img key={i} src={d} className="absolute pointer-events-none opacity-10 mix-blend-multiply w-32 h-32" style={{ top: `${15 + i*20}%`, left: i%2===0 ? '3%' : '85%' }} />
            ))}
-
            <div className="mt-32 pt-8 border-t-2 border-slate-100 flex justify-between items-end opacity-20 text-[6px] font-black uppercase tracking-[0.4em]">
               <div>{worksheet.institutionName} • Suite Node {worksheet.id?.slice(-4).toUpperCase()}</div>
-              <div className="text-right">Architectural Validation: OK</div>
+              <div className="text-right">Validation: OK</div>
            </div>
         </div>
 
         {showKey && (
           <div className="mt-24 p-16 bg-white border-t-4 border-slate-900 page-break-before">
              <div className="flex items-center gap-4 mb-12 pb-8 border-b border-slate-100">
-                <ShieldCheck className="w-10 h-10" />
-                <h2 className={`text-5xl font-black uppercase tracking-tighter italic ${getHeaderFont()}`}>Key Registry</h2>
+                <ShieldCheck className="w-10 h-10" /><h2 className={`text-5xl font-black uppercase tracking-tighter italic ${getHeaderFont()}`}>Key Registry</h2>
              </div>
              <div className="space-y-12">
                 {worksheet.questions.map((q, idx) => (
@@ -527,16 +480,12 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
                      <div className="flex-1 space-y-4">
                         <div className={`p-6 bg-slate-50 border border-slate-100 rounded-xl ${selectedStyle === 'Creative' ? 'rounded-[2rem] border-dashed bg-white' : ''}`}>
                            <p className="text-[7px] font-black uppercase text-slate-400 mb-2">Verified Solution</p>
-                           <p className="text-xl font-black">
-                             <EditableField value={q.correctAnswer} onSave={(v: any) => updateQuestion(q.id, {correctAnswer: v})} />
-                           </p>
+                           <p className="text-xl font-black"><EditableField value={q.correctAnswer} onSave={(v: any) => updateQuestion(q.id, {correctAnswer: v})} /></p>
                         </div>
                         {q.explanation && (
                            <div className="pt-2">
                              <p className="text-[8px] font-black uppercase text-slate-400 mb-1">Instructional Commentary</p>
-                             <p className="text-xs font-medium text-slate-500 italic">
-                               <EditableField multiline value={q.explanation} onSave={(v: any) => updateQuestion(q.id, {explanation: v})} />
-                             </p>
+                             <p className="text-xs font-medium text-slate-500 italic"><EditableField multiline value={q.explanation} onSave={(v: any) => updateQuestion(q.id, {explanation: v})} /></p>
                            </div>
                         )}
                      </div>
