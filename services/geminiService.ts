@@ -60,11 +60,26 @@ export async function generateWorksheet(options: GenerationOptions): Promise<Wor
   } = options;
 
   const parts: any[] = [];
-  if (fileData) parts.push({ inlineData: { data: fileData.data, mimeType: fileData.mimeType } });
+  
+  // 1. Add Media First (Multimodal Anchor)
+  if (fileData) {
+    parts.push({ 
+      inlineData: { 
+        data: fileData.data, 
+        mimeType: fileData.mimeType 
+      } 
+    });
+  }
 
+  // 2. Refined Prompt with Explicit Media Extraction Instructions
   const promptText = `
     ROLE: Senior Academic Designer & Curriculum Specialist.
     TASK: Generate a high-quality ${documentType} in ${language}.
+    
+    SOURCE MATERIAL HANDLING:
+    ${fileData ? '1. CRITICAL: Analyze the ATTACHED MEDIA (PDF/Image) provided. This is your primary source of truth.' : ''}
+    ${fileData ? '2. Extract text, diagrams, and specific academic problems from the attached file.' : ''}
+    ${rawText ? `3. Additionally, use this supplementary text: "${rawText}"` : ''}
     
     STANDARDS ALIGNMENT: Strictly align content to ${curriculumStandard === CurriculumStandard.NONE ? 'General Academic Standards' : curriculumStandard} learning objectives for ${audienceCategory} - ${educationalLevel}.
     
@@ -74,8 +89,6 @@ export async function generateWorksheet(options: GenerationOptions): Promise<Wor
     LEARNER LEVEL: ${audienceCategory} - ${educationalLevel}
     LEARNER PROFILE: ${learnerProfile} (Adjust rigor and instructions accordingly)
     DIFFICULTY: ${difficulty}
-    
-    ${rawText ? `MATERIAL TO BASE QUESTIONS ON: ${rawText}` : ''}
 
     PEDAGOGICAL RULES:
     1. For ${learnerProfile === LearnerProfile.SPECIAL_ED ? 'IEP/Special Ed' : learnerProfile}, adjust vocabulary complexity.
@@ -83,10 +96,10 @@ export async function generateWorksheet(options: GenerationOptions): Promise<Wor
     3. CRITICAL: For every single question, provide a 'sectionInstruction'.
     4. Provide a 'standardReference' string (e.g., "CCSS.ELA-LITERACY.RI.9-10.1") that maps to the primary objective of this worksheet.
     
-    COUNTS:
+    QUESTION MIX REQUESTED:
     ${Object.entries(questionCounts).map(([t, c]) => `- ${t}: ${c}`).join('\n')}
 
-    FORMAT: Return JSON matching the Worksheet structure.
+    FORMAT: Return JSON matching the Worksheet structure. Ensure the title is descriptive based on the provided material.
   `;
   
   parts.push({ text: promptText });
