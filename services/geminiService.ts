@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { Worksheet, QuestionType, ThemeType, DocumentType, AudienceCategory, LearnerProfile, Course } from "../types";
+import { Worksheet, QuestionType, ThemeType, DocumentType, AudienceCategory, LearnerProfile, Course, AssessmentBlueprint } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -17,6 +17,81 @@ export interface GenerationOptions {
   rawText?: string;
   fileData?: { data: string; mimeType: string };
   isMathMode?: boolean;
+}
+
+/**
+ * Advanced analysis that extracts multiple assessment opportunities from course material.
+ */
+export async function analyzeCourseForBlueprints(
+  fileData?: { data: string; mimeType: string },
+  rawText?: string
+): Promise<{ 
+  courseTitle: string;
+  suggestedAudience: AudienceCategory;
+  suggestedLevel: string;
+  blueprints: AssessmentBlueprint[];
+} | null> {
+  const parts: any[] = [];
+  if (fileData) parts.push({ inlineData: { data: fileData.data, mimeType: fileData.mimeType } });
+  
+  const promptText = `
+    ROLE: Academic Program Director.
+    TASK: Analyze the syllabus or course material and propose a comprehensive assessment plan.
+    
+    ${rawText ? `CONTEXT: ${rawText}` : ''}
+    
+    OUTPUT REQUIREMENTS:
+    1. Identify a logical Course Title.
+    2. Suggest 4-6 specific Assessments (Worksheets/Exams/Quizzes) based on the sub-topics found.
+    3. For each assessment, provide a title and a detailed topic scope.
+    
+    FORMAT: Return JSON.
+  `;
+  
+  parts.push({ text: promptText });
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: { parts },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            courseTitle: { type: Type.STRING },
+            suggestedAudience: { type: Type.STRING, enum: Object.values(AudienceCategory) },
+            suggestedLevel: { type: Type.STRING },
+            blueprints: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  topic: { type: Type.STRING },
+                  suggestedDocType: { type: Type.STRING, enum: Object.values(DocumentType) }
+                },
+                required: ["title", "topic", "suggestedDocType"]
+              }
+            }
+          },
+          required: ["courseTitle", "suggestedAudience", "suggestedLevel", "blueprints"]
+        }
+      }
+    });
+    const parsed = JSON.parse(response.text || '{}');
+    return {
+      ...parsed,
+      blueprints: parsed.blueprints.map((b: any) => ({
+        ...b,
+        id: Math.random().toString(36).substr(2, 9),
+        status: 'draft'
+      }))
+    };
+  } catch (error) {
+    console.error("Blueprint analysis failed", error);
+    return null;
+  }
 }
 
 /**

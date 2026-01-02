@@ -36,6 +36,15 @@ export enum LearnerProfile {
   REMEDIAL = 'REMEDIAL'
 }
 
+export interface AssessmentBlueprint {
+  id: string;
+  title: string;
+  topic: string;
+  status: 'draft' | 'generating' | 'ready' | 'saved';
+  worksheet?: Worksheet;
+  suggestedDocType: DocumentType;
+}
+
 export interface CourseModule {
   id: string;
   title: string;
@@ -77,7 +86,8 @@ export enum AppMode {
   GENERATOR = 'GENERATOR',
   WORKSHEET = 'WORKSHEET',
   QUIZ = 'QUIZ',
-  COURSE_MANAGER = 'COURSE_MANAGER'
+  COURSE_MANAGER = 'COURSE_MANAGER',
+  BLUEPRINT_DASHBOARD = 'BLUEPRINT_DASHBOARD'
 }
 
 export enum ThemeType {

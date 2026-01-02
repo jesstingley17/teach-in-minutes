@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { AppMode, Worksheet, ThemeType, QuestionType, DocumentType, AudienceCategory, LearnerProfile, Course, CourseModule } from './types';
-import { generateWorksheet, parseCourseOutline, analyzeSourceMaterial } from './services/geminiService';
+import { AppMode, Worksheet, ThemeType, QuestionType, DocumentType, AudienceCategory, LearnerProfile, Course, CourseModule, AssessmentBlueprint } from './types';
+import { generateWorksheet, parseCourseOutline, analyzeCourseForBlueprints } from './services/geminiService';
 import { WorksheetView } from './components/WorksheetView';
 import { QuizView } from './components/QuizView';
 import { MarkerHighlight } from './components/HandwritingElements';
@@ -16,7 +16,7 @@ import {
   Baby, School, Building2, UserCircle, 
   Zap, Brain, Languages, Users, Layout, 
   BookOpen, ChevronRight, MoreHorizontal, CheckCircle,
-  File, X as CloseIcon, Sparkles
+  File, X as CloseIcon, Sparkles, Grid3X3, ListTodo, Edit
 } from 'lucide-react';
 
 const CATEGORIES = [
@@ -40,6 +40,8 @@ const App: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [worksheet, setWorksheet] = useState<Worksheet | null>(null);
   const [activeCourse, setActiveCourse] = useState<Course | null>(null);
+  const [blueprints, setBlueprints] = useState<AssessmentBlueprint[]>([]);
+  const [activeBlueprintId, setActiveBlueprintId] = useState<string | null>(null);
   const [savedWorksheets, setSavedWorksheets] = useState<Worksheet[]>([]);
   const [loading, setLoading] = useState(false);
   const [showTeacherKey, setShowTeacherKey] = useState(false);
@@ -78,6 +80,11 @@ const App: React.FC = () => {
     const newSaved = [wsToSave, ...savedWorksheets.filter(w => w.id !== wsToSave.id)].slice(0, 20);
     localStorage.setItem('tm_v3_saved', JSON.stringify(newSaved));
     setSavedWorksheets(newSaved);
+    
+    // Update blueprint status if applicable
+    if (activeBlueprintId) {
+      setBlueprints(prev => prev.map(b => b.id === activeBlueprintId ? { ...b, status: 'saved', worksheet: wsToSave } : b));
+    }
   };
 
   const updateCount = (type: string, delta: number) => {
@@ -99,10 +106,19 @@ const App: React.FC = () => {
       reader.onloadend = async () => {
         const result = reader.result as string;
         const base64String = result.split(',')[1];
-        const course = await parseCourseOutline({ data: base64String, mimeType: file.type });
-        setActiveCourse(course);
-        localStorage.setItem('tm_v3_course', JSON.stringify(course));
-        setMode(AppMode.COURSE_MANAGER);
+        const fileData = { data: base64String, mimeType: file.type, name: file.name };
+        
+        const analysis = await analyzeCourseForBlueprints(fileData);
+        if (analysis) {
+          setBlueprints(analysis.blueprints);
+          setFormData(prev => ({
+            ...prev,
+            audienceCategory: analysis.suggestedAudience,
+            educationalLevel: analysis.suggestedLevel,
+            fileData: fileData
+          }));
+          setMode(AppMode.BLUEPRINT_DASHBOARD);
+        }
       };
       reader.readAsDataURL(file);
     } catch (e) {
@@ -123,37 +139,48 @@ const App: React.FC = () => {
       const base64String = result.split(',')[1];
       const newFileData = { data: base64String, mimeType: file.type, name: file.name };
       
-      setFormData(prev => ({ ...prev, fileData: newFileData }));
-
-      // Automatically analyze the content to pre-fill the form
-      const analysis = await analyzeSourceMaterial(newFileData, formData.rawText);
+      const analysis = await analyzeCourseForBlueprints(newFileData, formData.rawText);
       if (analysis) {
+        setBlueprints(analysis.blueprints);
         setFormData(prev => ({
           ...prev,
-          customTitle: analysis.suggestedTitle,
-          topic: analysis.suggestedTopicScope,
           audienceCategory: analysis.suggestedAudience,
           educationalLevel: analysis.suggestedLevel,
-          documentType: analysis.suggestedDocType
+          fileData: newFileData
         }));
-        // Auto-advance if analysis is successful and comprehensive
-        setCurrentStep(2);
+        setMode(AppMode.BLUEPRINT_DASHBOARD);
       }
       setIsAnalyzing(false);
     };
     reader.readAsDataURL(file);
   };
 
-  const handleGenerateFromModule = (module: CourseModule) => {
-    setFormData({
-      ...formData,
-      topic: `${module.title}: ${module.topics.join(', ')}`,
-      customTitle: module.title,
-      rawText: module.description,
-      fileData: null 
-    });
+  const startGenerationFromBlueprint = (bp: AssessmentBlueprint) => {
+    setFormData(prev => ({
+      ...prev,
+      topic: bp.topic,
+      customTitle: bp.title,
+      documentType: bp.suggestedDocType
+    }));
+    setActiveBlueprintId(bp.id);
     setMode(AppMode.GENERATOR);
-    setCurrentStep(2); // Go straight to Refine Settings
+    setCurrentStep(2); // Review Settings
+  };
+
+  const handleManualBatch = () => {
+    const sections = formData.rawText.split('\n').filter(s => s.trim().length > 3);
+    if (sections.length === 0) return alert("Paste some section names first!");
+    
+    const newBlueprints: AssessmentBlueprint[] = sections.map(s => ({
+      id: Math.random().toString(36).substr(2, 9),
+      title: s.split(':')[0] || 'Assessment',
+      topic: s,
+      status: 'draft',
+      suggestedDocType: DocumentType.QUIZ
+    }));
+    
+    setBlueprints(newBlueprints);
+    setMode(AppMode.BLUEPRINT_DASHBOARD);
   };
 
   const handleGenerate = async () => {
@@ -167,7 +194,14 @@ const App: React.FC = () => {
         isMathMode,
         fileData: formData.fileData ? { data: formData.fileData.data, mimeType: formData.fileData.mimeType } : undefined
       });
-      setWorksheet({ ...result, id: Date.now().toString(), savedAt: Date.now() });
+      const ws = { ...result, id: Date.now().toString(), savedAt: Date.now() };
+      setWorksheet(ws);
+      
+      // Update blueprint ref if we came from dashboard
+      if (activeBlueprintId) {
+        setBlueprints(prev => prev.map(b => b.id === activeBlueprintId ? { ...b, status: 'ready', worksheet: ws } : b));
+      }
+      
       setMode(AppMode.WORKSHEET);
     } catch (e) {
       alert("Generation failed.");
@@ -175,8 +209,6 @@ const App: React.FC = () => {
       setLoading(false);
     }
   };
-
-  const activeCategory = CATEGORIES.find(c => c.id === formData.audienceCategory);
 
   return (
     <div className="min-h-screen flex bg-slate-100">
@@ -188,19 +220,19 @@ const App: React.FC = () => {
               </div>
               <div>
                  <h1 className="font-black text-xl tracking-tighter leading-none">TEACH IN MINUTES</h1>
-                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Syllabus Edition</span>
+                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Blueprint Pro</span>
               </div>
            </div>
         </div>
         
         <div className="flex-1 overflow-y-auto p-6 space-y-8">
            <nav className="space-y-2">
-              <button onClick={() => { setMode(AppMode.GENERATOR); setCurrentStep(1); setFormData(p => ({ ...p, fileData: null, rawText: '' })); }} className={`w-full flex items-center gap-3 p-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${mode === AppMode.GENERATOR ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
-                 <Plus className="w-4 h-4" /> New Session
+              <button onClick={() => { setMode(AppMode.GENERATOR); setCurrentStep(1); setFormData(p => ({ ...p, fileData: null, rawText: '' })); setBlueprints([]); }} className={`w-full flex items-center gap-3 p-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${mode === AppMode.GENERATOR && !blueprints.length ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
+                 <Plus className="w-4 h-4" /> New Intake
               </button>
-              {activeCourse && (
-                <button onClick={() => setMode(AppMode.COURSE_MANAGER)} className={`w-full flex items-center gap-3 p-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${mode === AppMode.COURSE_MANAGER ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
-                   <Layout className="w-4 h-4" /> Curriculum Map
+              {blueprints.length > 0 && (
+                <button onClick={() => setMode(AppMode.BLUEPRINT_DASHBOARD)} className={`w-full flex items-center gap-3 p-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${mode === AppMode.BLUEPRINT_DASHBOARD ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
+                   <Grid3X3 className="w-4 h-4" /> Curriculum Dashboard
                 </button>
               )}
               <button onClick={() => worksheet && setMode(AppMode.WORKSHEET)} disabled={!worksheet} className={`w-full flex items-center gap-3 p-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${mode === AppMode.WORKSHEET ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50 disabled:opacity-30'}`}>
@@ -209,17 +241,7 @@ const App: React.FC = () => {
            </nav>
 
            <div>
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-300 mb-4">Course Controls</h3>
-              <div className="space-y-2">
-                <input type="file" ref={syllabusInputRef} className="hidden" onChange={handleCourseUpload} />
-                <button onClick={() => syllabusInputRef.current?.click()} className="w-full flex items-center gap-2 p-3 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 font-bold text-[10px] uppercase hover:border-slate-400 hover:text-slate-600 transition-all">
-                  <Upload className="w-3.5 h-3.5" /> Upload Syllabus
-                </button>
-              </div>
-           </div>
-
-           <div>
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-300 mb-4">Recent Library</h3>
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-300 mb-4">Library</h3>
               <div className="space-y-3">
                  {savedWorksheets.map(sw => (
                     <div key={sw.id} onClick={() => { setWorksheet(sw); setMode(AppMode.WORKSHEET); }} className="p-4 rounded-xl border border-slate-100 bg-slate-50 hover:bg-white hover:shadow-md cursor-pointer transition-all group">
@@ -238,48 +260,69 @@ const App: React.FC = () => {
              <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6">
                 <Loader2 className="w-16 h-16 animate-spin text-slate-900" />
                 <div className="text-center">
-                  <h2 className="text-3xl font-black uppercase tracking-tighter">Structuring Content...</h2>
-                  <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest">Gemini is analyzing the educational context</p>
+                  <h2 className="text-3xl font-black uppercase tracking-tighter">AI Program Design...</h2>
+                  <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest">Gemini is mapping out your curriculum</p>
                 </div>
              </div>
            ) : (
              <>
-               {mode === AppMode.COURSE_MANAGER && activeCourse && (
+               {mode === AppMode.BLUEPRINT_DASHBOARD && (
                  <div className="animate-in fade-in slide-in-from-bottom-8 duration-700">
-                    <header className="mb-12">
-                      <div className="inline-block px-3 py-1 bg-blue-100 text-blue-700 rounded-lg text-[10px] font-black uppercase tracking-widest mb-4">Course Outline Active</div>
-                      <h2 className="text-5xl font-black tracking-tighter text-slate-900 uppercase">{activeCourse.title}</h2>
-                      <p className="text-slate-500 font-bold mt-2 uppercase text-xs tracking-widest">{activeCourse.description}</p>
+                    <header className="mb-12 flex justify-between items-end">
+                      <div>
+                        <div className="inline-block px-3 py-1 bg-green-100 text-green-700 rounded-lg text-[10px] font-black uppercase tracking-widest mb-4">Draft Blueprint Ready</div>
+                        <h2 className="text-5xl font-black tracking-tighter text-slate-900 uppercase">Curriculum Dashboard</h2>
+                        <p className="text-slate-500 font-bold mt-2 uppercase text-xs tracking-widest">Select a section to generate or refine your content</p>
+                      </div>
+                      <button onClick={() => { setMode(AppMode.GENERATOR); setCurrentStep(1); }} className="px-6 py-3 bg-white border border-slate-200 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:border-slate-900 transition-all flex items-center gap-2">
+                        <Plus className="w-4 h-4" /> Add Section
+                      </button>
                     </header>
 
-                    <div className="grid grid-cols-1 gap-6">
-                       {activeCourse.modules.map((mod, i) => (
-                         <div key={mod.id} className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100 flex items-start justify-between group hover:border-blue-400 transition-all">
-                            <div className="flex-1">
-                               <div className="flex items-center gap-4 mb-2">
-                                  <span className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center font-black text-xs">0{i+1}</span>
-                                  <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">{mod.title}</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                       {blueprints.map((bp, i) => (
+                         <div key={bp.id} className={`bg-white p-8 rounded-[2.5rem] shadow-xl border-2 transition-all group flex flex-col justify-between ${bp.status === 'ready' ? 'border-green-400' : bp.status === 'saved' ? 'border-blue-400 opacity-60' : 'border-slate-100 hover:border-slate-300'}`}>
+                            <div>
+                               <div className="flex justify-between items-start mb-6">
+                                  <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${bp.status === 'ready' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-400'}`}>
+                                     {bp.status}
+                                  </span>
+                                  <span className="text-slate-200 font-black text-2xl tracking-tighter">#0{i+1}</span>
                                </div>
-                               <p className="text-slate-500 text-sm mb-6 pr-12">{mod.description}</p>
-                               <div className="flex flex-wrap gap-2">
-                                  {mod.topics.map(t => (
-                                    <span key={t} className="px-3 py-1 bg-slate-50 border border-slate-100 rounded-full text-[10px] font-bold text-slate-400">{t}</span>
-                                  ))}
-                               </div>
+                               <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tight mb-3 leading-tight">{bp.title}</h3>
+                               <p className="text-slate-400 text-[10px] font-bold uppercase mb-8 line-clamp-2 leading-relaxed">{bp.topic}</p>
                             </div>
-                            <div className="flex flex-col gap-2">
-                               <button 
-                                 onClick={() => handleGenerateFromModule(mod)}
-                                 className="px-6 py-3 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:bg-blue-600 transition-all"
-                               >
-                                  <Wand2 className="w-4 h-4" /> Draft Assessment
-                               </button>
-                               <button className="px-6 py-3 bg-slate-50 text-slate-400 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 border border-slate-100 hover:bg-slate-100 transition-all">
-                                  <BookOpen className="w-4 h-4" /> Lesson Details
+                            
+                            <div className="space-y-3">
+                               {bp.status === 'ready' || bp.status === 'saved' ? (
+                                 <button 
+                                   onClick={() => { setWorksheet(bp.worksheet!); setMode(AppMode.WORKSHEET); }}
+                                   className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-800 transition-all"
+                                 >
+                                    <FileText className="w-4 h-4" /> Open Editor
+                                 </button>
+                               ) : (
+                                 <button 
+                                   onClick={() => startGenerationFromBlueprint(bp)}
+                                   className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-lg"
+                                 >
+                                    <Wand2 className="w-4 h-4" /> Generate Section
+                                 </button>
+                               )}
+                               <button className="w-full py-4 bg-slate-50 text-slate-400 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-100 transition-all">
+                                  <Edit className="w-4 h-4" /> Edit Blueprint
                                </button>
                             </div>
                          </div>
                        ))}
+                       
+                       <button 
+                         onClick={() => { setMode(AppMode.GENERATOR); setCurrentStep(1); }}
+                         className="border-4 border-dashed border-slate-200 rounded-[2.5rem] flex flex-col items-center justify-center gap-4 text-slate-300 hover:text-slate-500 hover:border-slate-300 transition-all p-8"
+                       >
+                          <Plus className="w-12 h-12" />
+                          <span className="font-black text-xs uppercase tracking-[0.2em]">Add New Module</span>
+                       </button>
                     </div>
                  </div>
                )}
@@ -288,7 +331,7 @@ const App: React.FC = () => {
                  <div className="max-w-4xl mx-auto py-12">
                    <header className="text-center mb-16">
                       <h2 className="text-6xl font-black tracking-tighter text-slate-900 mb-4 uppercase">
-                        Assemble <MarkerHighlight>Assessment</MarkerHighlight>
+                        {currentStep === 1 ? 'Content Intake' : 'Refine Assessment'}
                       </h2>
                       <p className="text-slate-500 font-bold uppercase text-[10px] tracking-[0.3em]">Step {currentStep} of 3</p>
                       
@@ -306,20 +349,20 @@ const App: React.FC = () => {
                         {currentStep === 1 && (
                           <div className="animate-in slide-in-from-right duration-500 h-full flex flex-col gap-8">
                              <div className="space-y-4">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">1. Intake Source Material</label>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">1. Bulk Document Upload</label>
                                 {!formData.fileData ? (
                                   <button onClick={() => fileInputRef.current?.click()} className="w-full p-12 border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50 hover:bg-white hover:border-blue-500 hover:shadow-2xl transition-all flex flex-col items-center group relative overflow-hidden">
                                      {isAnalyzing && (
                                        <div className="absolute inset-0 bg-blue-600/90 backdrop-blur-md flex flex-col items-center justify-center text-white animate-in fade-in duration-300">
                                           <Loader2 className="w-12 h-12 animate-spin mb-4" />
-                                          <span className="font-black uppercase tracking-[0.3em] text-xs">AI Extraction in Progress</span>
+                                          <span className="font-black uppercase tracking-[0.3em] text-xs">Architecting Curriculum</span>
                                        </div>
                                      )}
                                      <div className="p-6 bg-blue-100 rounded-[2rem] text-blue-600 mb-6 group-hover:scale-110 transition-transform">
                                         <Upload className="w-12 h-12" />
                                      </div>
-                                     <h3 className="font-black text-xl uppercase tracking-tighter text-slate-800 mb-2">Upload Documentation</h3>
-                                     <span className="font-bold text-xs uppercase tracking-widest text-slate-400 group-hover:text-blue-600">PDF, DOCX, or Image (Recommended)</span>
+                                     <h3 className="font-black text-xl uppercase tracking-tighter text-slate-800 mb-2">Upload Syllabus or Course Doc</h3>
+                                     <span className="font-bold text-xs uppercase tracking-widest text-slate-400 group-hover:text-blue-600">PDF, Word, or Image</span>
                                      <input ref={fileInputRef} type="file" className="hidden" onChange={handleModuleFileChange} />
                                   </button>
                                 ) : (
@@ -329,14 +372,11 @@ const App: React.FC = () => {
                                            <File className="w-8 h-8" />
                                         </div>
                                         <div>
-                                           <p className="text-[10px] font-black uppercase opacity-60 tracking-widest mb-1">Source Material Attached</p>
+                                           <p className="text-[10px] font-black uppercase opacity-60 tracking-widest mb-1">Material Scanned</p>
                                            <p className="font-black text-xl truncate max-w-[300px]">{formData.fileData.name}</p>
                                         </div>
                                      </div>
-                                     <button 
-                                       onClick={() => setFormData(p => ({ ...p, fileData: null }))}
-                                       className="p-4 hover:bg-white/20 rounded-2xl transition-colors"
-                                     >
+                                     <button onClick={() => setFormData(p => ({ ...p, fileData: null }))} className="p-4 hover:bg-white/20 rounded-2xl transition-colors">
                                         <CloseIcon className="w-6 h-6" />
                                      </button>
                                   </div>
@@ -345,39 +385,23 @@ const App: React.FC = () => {
                              
                              <div className="relative">
                                 <div className="flex justify-between items-center mb-2">
-                                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Or Paste Content Manually</label>
-                                  {isAnalyzing && !formData.fileData && <span className="flex items-center gap-2 text-[10px] font-black text-blue-600 animate-pulse"><Loader2 className="w-3 h-3 animate-spin" /> ANALYZING</span>}
+                                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Or Paste Section Names (One per line)</label>
+                                  <button onClick={handleManualBatch} className="text-[10px] font-black uppercase text-blue-600 hover:underline">Process List</button>
                                 </div>
                                 <textarea 
                                   className="w-full h-40 p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] font-medium text-slate-700 focus:bg-white focus:border-slate-900 outline-none resize-none transition-all" 
-                                  placeholder="Paste text, questions, or transcript segments here..." 
+                                  placeholder="e.g.&#10;Introduction to Cells&#10;Photosynthesis Basics&#10;The DNA Helix&#10;Final Review Exam" 
                                   value={formData.rawText} 
                                   onChange={e => setFormData({...formData, rawText: e.target.value})} 
                                 />
                              </div>
-                             
-                             {!formData.fileData && !formData.rawText && (
-                               <button 
-                                 onClick={() => setCurrentStep(2)}
-                                 className="w-full py-4 bg-white border-2 border-slate-100 rounded-2xl text-slate-400 font-black uppercase tracking-widest text-[10px] hover:border-slate-900 hover:text-slate-900 transition-all"
-                               >
-                                 Skip Upload & Configure Manually
-                               </button>
-                             )}
                           </div>
                         )}
 
                         {currentStep === 2 && (
                           <div className="animate-in slide-in-from-right duration-500 space-y-12">
-                             {isAnalyzing && (
-                               <div className="flex items-center gap-4 p-4 bg-blue-50 border border-blue-100 rounded-2xl animate-pulse">
-                                  <Sparkles className="w-5 h-5 text-blue-600" />
-                                  <span className="font-black text-[10px] uppercase tracking-widest text-blue-800">AI is refining the Blueprint...</span>
-                               </div>
-                             )}
-
                              <section>
-                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 block">2. Review Target Audience</label>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 block">Refine Audience Stage</label>
                                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                                    {CATEGORIES.map(cat => (
                                      <button 
@@ -394,31 +418,25 @@ const App: React.FC = () => {
 
                              <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                                 <section>
-                                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 block">Specific Year/Level</label>
+                                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 block">Section Specific Topic</label>
                                    <input 
                                      type="text"
-                                     className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-slate-700 outline-none focus:border-slate-900"
-                                     value={formData.educationalLevel}
-                                     onChange={(e) => setFormData({...formData, educationalLevel: e.target.value})}
-                                     placeholder="e.g. Grade 10, Freshman"
+                                     className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-slate-700 focus:border-slate-900 outline-none"
+                                     value={formData.topic}
+                                     onChange={(e) => setFormData({...formData, topic: e.target.value})}
                                    />
                                 </section>
 
                                 <section>
-                                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 block">Document Settings</label>
-                                   <div className="flex gap-4">
-                                      <select className="flex-1 p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-xs text-slate-700 outline-none" value={formData.documentType} onChange={e => setFormData({...formData, documentType: e.target.value as DocumentType})}>
-                                         {Object.values(DocumentType).map(t => <option key={t} value={t}>{t}</option>)}
-                                      </select>
-                                      <select className="flex-1 p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-xs text-slate-700 outline-none" value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}>
-                                         <option>English</option><option>Spanish</option><option>French</option><option>German</option>
-                                      </select>
-                                   </div>
+                                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 block">Document Type</label>
+                                   <select className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-slate-700 outline-none" value={formData.documentType} onChange={e => setFormData({...formData, documentType: e.target.value as DocumentType})}>
+                                      {Object.values(DocumentType).map(t => <option key={t} value={t}>{t}</option>)}
+                                   </select>
                                 </section>
                              </div>
 
                              <section>
-                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 block">Learner Profile</label>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 block">Refine Learner Profile</label>
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                    {PROFILES.map(prof => (
                                       <button key={prof.id} onClick={() => setFormData({ ...formData, learnerProfile: prof.id })} className={`p-4 rounded-2xl border-2 transition-all flex items-center gap-3 ${formData.learnerProfile === prof.id ? 'bg-white border-slate-900 ring-4 ring-slate-100' : 'bg-slate-50 border-slate-100 hover:border-slate-200'}`}>
@@ -428,58 +446,35 @@ const App: React.FC = () => {
                                    ))}
                                 </div>
                              </section>
-
-                             <div className="p-4 bg-blue-50/50 border-2 border-blue-100 rounded-2xl flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                   <Sigma className="w-5 h-5 text-blue-600" />
-                                   <span className="font-black text-[10px] uppercase tracking-widest text-blue-900">Enable Math Mode (LaTeX Rendering)</span>
-                                </div>
-                                <button onClick={() => setIsMathMode(!isMathMode)} className={`w-14 h-8 rounded-full transition-all relative ${isMathMode ? 'bg-blue-600' : 'bg-slate-200'}`}>
-                                   <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all shadow-sm ${isMathMode ? 'left-7' : 'left-1'}`} />
-                                </button>
-                             </div>
                           </div>
                         )}
 
                         {currentStep === 3 && (
-                          <div className="animate-in slide-in-from-right duration-500 h-full flex flex-col gap-8">
-                             <div className="p-8 bg-blue-50 rounded-[2.5rem] border border-blue-100 flex items-center justify-between">
-                                <div className="flex items-center gap-6">
-                                   <div className="p-4 bg-blue-600 rounded-2xl text-white shadow-lg"><FileText className="w-6 h-6" /></div>
-                                   <div>
-                                      <p className="text-[10px] font-black uppercase text-blue-400 tracking-widest mb-1">Target Assessment</p>
-                                      <h4 className="text-xl font-black text-blue-900 uppercase leading-none">{formData.customTitle || formData.topic || 'Untitled Session'}</h4>
-                                   </div>
+                          <div className="animate-in slide-in-from-right duration-500 h-full flex flex-col gap-8 text-center">
+                             <div className="p-12 bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200 flex flex-col items-center">
+                                <div className="w-20 h-20 bg-slate-900 text-white rounded-[2rem] flex items-center justify-center mb-6 shadow-2xl">
+                                   <Wand2 className="w-10 h-10" />
                                 </div>
-                                {formData.fileData && (
-                                   <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-blue-200">
-                                      <File className="w-3.5 h-3.5 text-blue-600" />
-                                      <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest">Processed Doc</span>
-                                   </div>
-                                )}
-                             </div>
-
-                             <div className="space-y-6">
-                                <div>
-                                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Questions to Generate</label>
-                                   <div className="grid grid-cols-2 gap-4">
-                                      {Object.entries(formData.questionCounts).map(([type, count]) => (
-                                         <div key={type} className="flex items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-2xl">
-                                            <span className="font-black text-[10px] uppercase tracking-tighter text-slate-600">{type.replace('_', ' ')}</span>
-                                            <div className="flex items-center gap-3">
-                                               <button onClick={() => updateCount(type, -1)} className="p-1 text-slate-300 hover:text-slate-600"><Minus className="w-4 h-4" /></button>
-                                               <span className="font-black text-sm w-4 text-center">{count}</span>
-                                               <button onClick={() => updateCount(type, 1)} className="p-1 text-slate-300 hover:text-slate-600"><Plus className="w-4 h-4" /></button>
-                                            </div>
-                                         </div>
-                                      ))}
-                                   </div>
-                                </div>
+                                <h3 className="text-4xl font-black uppercase tracking-tighter text-slate-900 mb-4">Ready for Production</h3>
+                                <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] max-w-sm mx-auto">Gemini Pro is ready to generate high-fidelity questions based on your architectural blueprint</p>
                                 
-                                <button onClick={handleGenerate} className="w-full py-6 bg-slate-900 text-white rounded-[2rem] font-black text-xl uppercase tracking-widest hover:bg-slate-800 transition-all shadow-2xl active:scale-95 flex items-center justify-center gap-4 mt-8">
-                                   <Wand2 className="w-6 h-6 text-yellow-400" /> Assemble Final Assessment
-                                </button>
+                                <div className="grid grid-cols-3 gap-8 mt-12 w-full max-w-lg">
+                                   {Object.entries(formData.questionCounts).map(([type, count]) => (
+                                      <div key={type} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col items-center">
+                                         <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 mb-2">{type.replace('_', ' ')}</span>
+                                         <div className="flex items-center gap-4">
+                                            <button onClick={() => updateCount(type, -1)} className="text-slate-300 hover:text-slate-600"><Minus className="w-4 h-4" /></button>
+                                            <span className="text-xl font-black">{count}</span>
+                                            <button onClick={() => updateCount(type, 1)} className="text-slate-300 hover:text-slate-600"><Plus className="w-4 h-4" /></button>
+                                         </div>
+                                      </div>
+                                   ))}
+                                </div>
                              </div>
+                             
+                             <button onClick={handleGenerate} className="w-full py-8 bg-slate-900 text-white rounded-[2.5rem] font-black text-2xl uppercase tracking-widest hover:bg-slate-800 transition-all shadow-2xl active:scale-95 flex items-center justify-center gap-4">
+                                <Sparkles className="w-8 h-8 text-yellow-400" /> Assemble Content
+                             </button>
                           </div>
                         )}
                       </div>
