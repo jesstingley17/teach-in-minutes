@@ -18,7 +18,7 @@ import {
   BookOpen, ChevronRight, MoreHorizontal, CheckCircle,
   File, X as CloseIcon, Sparkles, Grid3X3, ListTodo, Edit,
   Link as LinkIcon, Bookmark, FolderPlus, Folder, ChevronDown, 
-  Layers, Package, Archive, Move
+  Layers, Package, Archive, Move, Play, CheckSquare
 } from 'lucide-react';
 
 const CATEGORIES = [
@@ -48,6 +48,7 @@ const App: React.FC = () => {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [expandedCollections, setExpandedCollections] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
+  const [batchLoading, setBatchLoading] = useState(false);
   const [showTeacherKey, setShowTeacherKey] = useState(false);
   const [isMathMode, setIsMathMode] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -82,7 +83,6 @@ const App: React.FC = () => {
     if (savedColls) {
       setCollections(JSON.parse(savedColls));
     } else {
-      // Default collection
       const defaultColl = { id: 'default', name: 'My Assignments', createdAt: Date.now() };
       setCollections([defaultColl]);
       localStorage.setItem('tm_v3_collections', JSON.stringify([defaultColl]));
@@ -91,14 +91,16 @@ const App: React.FC = () => {
 
   const handleSave = (wsToSave: Worksheet, collectionId: string = 'default') => {
     const wsWithColl = { ...wsToSave, collectionId };
-    const newSaved = [wsWithColl, ...savedWorksheets.filter(w => w.id !== wsToSave.id)].slice(0, 50);
+    const newSaved = [wsWithColl, ...savedWorksheets.filter(w => w.id !== wsToSave.id)].slice(0, 100);
     localStorage.setItem('tm_v3_saved', JSON.stringify(newSaved));
     setSavedWorksheets(newSaved);
     setShowSaveModal(false);
     
-    // Update blueprint status if applicable
     if (activeBlueprintId) {
       setBlueprints(prev => prev.map(b => b.id === activeBlueprintId ? { ...b, status: 'saved', worksheet: wsWithColl } : b));
+    } else {
+      // If we are batch saving, we need to find the blueprint that matches the worksheet
+      setBlueprints(prev => prev.map(b => b.worksheet?.id === wsToSave.id ? { ...b, status: 'saved', worksheet: wsWithColl } : b));
     }
   };
 
@@ -215,9 +217,86 @@ const App: React.FC = () => {
     }
   };
 
+  // --- NEW BATCH ACTIONS ---
+  const handleGenerateAllDrafts = async () => {
+    const drafts = blueprints.filter(b => b.status === 'draft');
+    if (drafts.length === 0) return;
+    
+    if (!confirm(`Generate content for all ${drafts.length} blueprints? This may take a minute.`)) return;
+    
+    setBatchLoading(true);
+    
+    for (const draft of drafts) {
+      // Mark current item as "generating" for UI
+      setBlueprints(prev => prev.map(b => b.id === draft.id ? { ...b, status: 'generating' } : b));
+      
+      try {
+        const result = await generateWorksheet({
+          topic: draft.topic,
+          educationalLevel: formData.educationalLevel,
+          audienceCategory: formData.audienceCategory,
+          learnerProfile: formData.learnerProfile,
+          difficulty: formData.difficulty,
+          language: formData.language,
+          documentType: draft.suggestedDocType,
+          questionCounts: formData.questionCounts,
+          isMathMode,
+          fileData: formData.fileData ? { data: formData.fileData.data, mimeType: formData.fileData.mimeType } : undefined
+        });
+        
+        const ws = { ...result, id: Math.random().toString(36).substr(2, 9), savedAt: Date.now() };
+        
+        setBlueprints(prev => prev.map(b => b.id === draft.id ? { ...b, status: 'ready', worksheet: ws } : b));
+      } catch (err) {
+        console.error(`Failed to generate ${draft.title}`, err);
+        setBlueprints(prev => prev.map(b => b.id === draft.id ? { ...b, status: 'draft' } : b));
+      }
+    }
+    
+    setBatchLoading(false);
+  };
+
+  const handleSaveAllReady = () => {
+    const readyItems = blueprints.filter(b => b.status === 'ready' && b.worksheet);
+    if (readyItems.length === 0) return;
+
+    const collectionName = prompt("Enter a Container/Collection Name to save all ready assets into:", "Batch Results");
+    if (!collectionName) return;
+
+    // Create new collection
+    const newColl: Collection = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: collectionName,
+      createdAt: Date.now()
+    };
+    
+    const newCollections = [...collections, newColl];
+    setCollections(newCollections);
+    localStorage.setItem('tm_v3_collections', JSON.stringify(newCollections));
+
+    // Save all worksheets to this collection
+    const newSaved = [...savedWorksheets];
+    readyItems.forEach(item => {
+      if (item.worksheet) {
+        const wsWithColl = { ...item.worksheet, collectionId: newColl.id };
+        // Check if exists
+        const idx = newSaved.findIndex(s => s.id === wsWithColl.id);
+        if (idx > -1) newSaved[idx] = wsWithColl;
+        else newSaved.push(wsWithColl);
+      }
+    });
+
+    localStorage.setItem('tm_v3_saved', JSON.stringify(newSaved));
+    setSavedWorksheets(newSaved);
+
+    // Update blueprints status
+    setBlueprints(prev => prev.map(b => b.status === 'ready' ? { ...b, status: 'saved' } : b));
+    
+    alert(`Successfully archived ${readyItems.length} items to "${collectionName}"`);
+  };
+
   return (
     <div className="min-h-screen flex bg-slate-100">
-      {/* Sidebar with Containers/Collections */}
       <aside className="w-80 bg-white border-r border-slate-200 hidden lg:flex flex-col fixed h-full z-20 no-print">
         <div className="p-8 border-b border-slate-100">
            <div className="flex items-center gap-3">
@@ -301,20 +380,41 @@ const App: React.FC = () => {
              <>
                {mode === AppMode.BLUEPRINT_DASHBOARD && (
                  <div className="animate-in fade-in slide-in-from-bottom-8 duration-700">
-                    <header className="mb-12 flex justify-between items-end">
-                      <div>
-                        <div className="inline-block px-3 py-1 bg-green-100 text-green-700 rounded-lg text-[10px] font-black uppercase tracking-widest mb-4">Module Map Ready</div>
+                    <header className="mb-12 flex justify-between items-end gap-8 flex-wrap">
+                      <div className="flex-1 min-w-[300px]">
+                        <div className="inline-block px-3 py-1 bg-green-100 text-green-700 rounded-lg text-[10px] font-black uppercase tracking-widest mb-4">Draft Module Map Ready</div>
                         <h2 className="text-5xl font-black tracking-tighter text-slate-900 uppercase">Curriculum Dashboard</h2>
                         <p className="text-slate-500 font-bold mt-2 uppercase text-xs tracking-widest">Organized by module and learning lesson</p>
                       </div>
-                      <button onClick={() => { setMode(AppMode.GENERATOR); setCurrentStep(1); }} className="px-6 py-3 bg-white border border-slate-200 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:border-slate-900 transition-all flex items-center gap-2">
-                        <Plus className="w-4 h-4" /> Add Section
-                      </button>
+                      
+                      <div className="flex items-center gap-3">
+                        {blueprints.some(b => b.status === 'draft') && (
+                          <button 
+                            onClick={handleGenerateAllDrafts}
+                            disabled={batchLoading}
+                            className="px-6 py-4 bg-slate-900 text-white rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all flex items-center gap-2 shadow-xl disabled:opacity-50"
+                          >
+                            {batchLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                            Generate All Drafts
+                          </button>
+                        )}
+                        {blueprints.some(b => b.status === 'ready') && (
+                          <button 
+                            onClick={handleSaveAllReady}
+                            className="px-6 py-4 bg-blue-600 text-white rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 transition-all flex items-center gap-2 shadow-xl"
+                          >
+                            <Archive className="w-4 h-4" /> Save All Ready Items
+                          </button>
+                        )}
+                        <button onClick={() => { setMode(AppMode.GENERATOR); setCurrentStep(1); }} className="px-6 py-4 bg-white border border-slate-200 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest hover:border-slate-900 transition-all flex items-center gap-2">
+                          <Plus className="w-4 h-4" /> Add Blueprint
+                        </button>
+                      </div>
                     </header>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                        {blueprints.map((bp, i) => (
-                         <div key={bp.id} className={`bg-white p-8 rounded-[2.5rem] shadow-xl border-2 transition-all group flex flex-col justify-between relative overflow-hidden ${bp.status === 'ready' ? 'border-green-400' : bp.status === 'saved' ? 'border-blue-400 opacity-60' : 'border-slate-100 hover:border-slate-300'}`}>
+                         <div key={bp.id} className={`bg-white p-8 rounded-[2.5rem] shadow-xl border-2 transition-all group flex flex-col justify-between relative overflow-hidden ${bp.status === 'ready' ? 'border-green-400' : bp.status === 'saved' ? 'border-blue-400 opacity-60' : bp.status === 'generating' ? 'border-yellow-400 animate-pulse' : 'border-slate-100 hover:border-slate-300'}`}>
                             
                             {(bp.originModule || bp.originLesson) && (
                                <div className="absolute top-0 right-0 p-3">
@@ -327,7 +427,12 @@ const App: React.FC = () => {
 
                             <div className="pt-6">
                                <div className="flex justify-between items-start mb-6">
-                                  <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${bp.status === 'ready' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-400'}`}>
+                                  <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest flex items-center gap-2 ${
+                                    bp.status === 'ready' ? 'bg-green-100 text-green-700' : 
+                                    bp.status === 'generating' ? 'bg-yellow-100 text-yellow-700' :
+                                    bp.status === 'saved' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-400'
+                                  }`}>
+                                     {bp.status === 'generating' && <Loader2 className="w-3 h-3 animate-spin" />}
                                      {bp.status}
                                   </span>
                                   <span className="text-slate-100 font-black text-3xl tracking-tighter">#{(i+1).toString().padStart(2, '0')}</span>
@@ -344,6 +449,10 @@ const App: React.FC = () => {
                                  >
                                     <FileText className="w-4 h-4" /> Open Editor
                                  </button>
+                               ) : bp.status === 'generating' ? (
+                                 <div className="w-full py-4 bg-slate-100 text-slate-400 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 italic">
+                                    Gemini Pro Working...
+                                 </div>
                                ) : (
                                  <button 
                                    onClick={() => startGenerationFromBlueprint(bp)}
@@ -532,7 +641,6 @@ const App: React.FC = () => {
                        </button>
                     </div>
 
-                    {/* Save to Collection Modal */}
                     {showSaveModal && (
                        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-6 no-print">
                           <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl p-10 animate-in zoom-in-95 duration-200">
