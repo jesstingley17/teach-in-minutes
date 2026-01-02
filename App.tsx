@@ -11,7 +11,7 @@ import {
   Languages, BrainCircuit, Star, Zap, Construction, Target,
   Settings, Layers, ChevronRight, Layout, Palette, Trash2, ArrowLeft,
   Settings2, Sliders, ListChecks, Hash, Gauge, Microscope, Copy, Check, User, PlayCircle,
-  Image as ImageIcon, Globe, Search, Brain, ListOrdered, FileText, Key, Info
+  Image as ImageIcon, Globe, Search, Brain, ListOrdered, FileText, Key, Info, Activity, Wifi, WifiOff
 } from 'lucide-react';
 
 const DEFAULT_BRANDING: BrandingConfig = {
@@ -26,6 +26,7 @@ const App: React.FC = () => {
   const [user, setUser] = useState<{ id: string; name: string } | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [apiKeyMissing, setApiKeyMissing] = useState(false);
+  const [isVerifyingKey, setIsVerifyingKey] = useState(false);
 
   const [mode, setMode] = useState<AppMode>(AppMode.ONBOARDING);
   const [worksheet, setWorksheet] = useState<Worksheet | null>(null);
@@ -68,6 +69,7 @@ const App: React.FC = () => {
    * Proactive API Key Verification
    */
   const checkApiKeyStatus = async () => {
+    setIsVerifyingKey(true);
     // 1. Check if we have the environment variable
     const hasEnvKey = !!process.env.API_KEY && process.env.API_KEY !== "";
     
@@ -84,13 +86,10 @@ const App: React.FC = () => {
     }
 
     // If both are missing, we must prompt the user
-    if (!hasEnvKey && !hasSelectedKey) {
-      setApiKeyMissing(true);
-      return false;
-    }
-    
-    setApiKeyMissing(false);
-    return true;
+    const missing = !hasEnvKey && !hasSelectedKey;
+    setApiKeyMissing(missing);
+    setIsVerifyingKey(false);
+    return !missing;
   };
 
   useEffect(() => {
@@ -109,6 +108,10 @@ const App: React.FC = () => {
     }
     
     setAuthLoading(false);
+
+    // Periodically refresh connection status
+    const interval = setInterval(checkApiKeyStatus, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleConnectApiKey = async () => {
@@ -358,6 +361,32 @@ const App: React.FC = () => {
               )}
            </div>
         </div>
+        
+        {/* API Connection Status Bar */}
+        <div className="px-6 py-4 border-t border-slate-50">
+           <div className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${apiKeyMissing ? 'bg-red-50 border-red-100' : 'bg-green-50 border-green-100'}`}>
+              <div className="relative">
+                 {apiKeyMissing ? (
+                   <WifiOff className="w-4 h-4 text-red-500" />
+                 ) : (
+                   <>
+                     <Wifi className="w-4 h-4 text-green-500" />
+                     <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-ping"></span>
+                   </>
+                 )}
+              </div>
+              <div className="flex-1">
+                 <p className={`text-[8px] font-black uppercase tracking-widest ${apiKeyMissing ? 'text-red-600' : 'text-green-600'}`}>
+                   {isVerifyingKey ? 'Synchronizing...' : apiKeyMissing ? 'AI Core: Offline' : 'AI Core: Online'}
+                 </p>
+                 <p className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">
+                   {apiKeyMissing ? 'Action Required' : 'Gemini 3 Pro Ready'}
+                 </p>
+              </div>
+              {!apiKeyMissing && <Check className="w-3 h-3 text-green-400" />}
+           </div>
+        </div>
+
         <div className="p-6 border-t border-slate-50 space-y-2">
            <div className="flex items-center gap-3 px-3 py-2 mb-2 bg-slate-50 rounded-xl">
               <div className="w-6 h-6 rounded-full bg-white shadow-sm flex items-center justify-center">
