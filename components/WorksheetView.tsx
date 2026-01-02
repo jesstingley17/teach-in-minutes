@@ -5,7 +5,7 @@ import { LatexRenderer } from './LatexRenderer';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { 
-  Trash2, Edit3, Check, Landmark, Printer, Loader2, ShieldCheck, GraduationCap, Grid, Info, Scale, PenTool, QrCode
+  Trash2, Edit3, Check, Landmark, Printer, Loader2, ShieldCheck, GraduationCap, Grid, Info, Scale, PenTool, QrCode, CloudUpload
 } from 'lucide-react';
 
 interface WorksheetViewProps {
@@ -27,6 +27,8 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
   const [isBuilderMode, setIsBuilderMode] = useState(false);
   const [currentTheme, setCurrentTheme] = useState<ThemeType>(initialTheme);
   const [isExporting, setIsExporting] = useState(false);
+
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { setWorksheet(initialWorksheet); }, [initialWorksheet]);
 
@@ -63,13 +65,57 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
     });
   };
 
-  const EditableField = ({ value, onSave, className, multiline = false, placeholder = "", isMath = false }: any) => {
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        handleUpdate({ ...worksheet, logoUrl: reader.result as string });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const EditableField = ({ value, onSave, className, style, multiline = false, placeholder = "", isMath = false }: any) => {
     const [local, setLocal] = useState(value);
     const [editing, setEditing] = useState(false);
     useEffect(() => setLocal(value), [value]);
-    if (!isBuilderMode) return isMath ? <LatexRenderer content={value || placeholder} className={className} /> : <span className={className}>{value || placeholder}</span>;
-    if (editing) return multiline ? <textarea autoFocus className={`w-full p-2 border-2 border-blue-400 rounded bg-blue-50 outline-none ${className}`} value={local} onChange={(e) => setLocal(e.target.value)} onBlur={() => { setEditing(false); onSave(local); }} /> : <input autoFocus className={`w-full p-1 border-2 border-blue-400 rounded bg-blue-50 outline-none ${className}`} value={local} onChange={(e) => setLocal(e.target.value)} onBlur={() => { setEditing(false); onSave(local); }} />;
-    return <span onClick={() => setEditing(true)} className={`cursor-text transition-all p-1 rounded border-2 border-transparent hover:border-blue-100 hover:bg-blue-50 block ${className} ${!value ? 'text-slate-300 italic' : ''}`}>{isMath ? <LatexRenderer content={value || placeholder} /> : (value || placeholder)}</span>;
+    
+    if (!isBuilderMode) {
+      return isMath ? <LatexRenderer content={value || placeholder} className={className} /> : <span className={className} style={style}>{value || placeholder}</span>;
+    }
+
+    if (editing) {
+      return multiline ? (
+        <textarea 
+          autoFocus 
+          className={`w-full p-2 border-2 border-blue-400 rounded bg-blue-50 outline-none ${className}`} 
+          style={style}
+          value={local} 
+          onChange={(e) => setLocal(e.target.value)} 
+          onBlur={() => { setEditing(false); onSave(local); }} 
+        />
+      ) : (
+        <input 
+          autoFocus 
+          className={`w-full p-1 border-2 border-blue-400 rounded bg-blue-50 outline-none ${className}`} 
+          style={style}
+          value={local} 
+          onChange={(e) => setLocal(e.target.value)} 
+          onBlur={() => { setEditing(false); onSave(local); }} 
+        />
+      );
+    }
+
+    return (
+      <span 
+        onClick={() => setEditing(true)} 
+        className={`cursor-text transition-all p-1 rounded border-2 border-transparent hover:border-blue-100 hover:bg-blue-50 block ${className} ${!value ? 'text-slate-300 italic' : ''}`}
+        style={style}
+      >
+        {isMath ? <LatexRenderer content={value || placeholder} /> : (value || placeholder)}
+      </span>
+    );
   };
 
   const totalPoints = worksheet.questions.reduce((sum, q) => sum + (q.points || 0), 0);
@@ -79,7 +125,7 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
       {/* Control Bar */}
       <div className="absolute -top-12 left-0 right-0 flex justify-between items-center no-print px-4 py-2 bg-white border border-slate-100 rounded-xl shadow-sm z-[60]">
         <div className="flex gap-4 items-center">
-          <button onClick={() => setIsBuilderMode(!isBuilderMode)} className={`flex items-center gap-2 px-4 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all ${isBuilderMode ? 'bg-blue-600 text-white' : 'bg-slate-50 hover:bg-slate-100'}`}>
+          <button onClick={() => setIsBuilderMode(!isBuilderMode)} className={`flex items-center gap-2 px-4 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all ${isBuilderMode ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-50 hover:bg-slate-100'}`}>
             {isBuilderMode ? <Check className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}
             {isBuilderMode ? 'Commit Edits' : 'Architect Mode'}
           </button>
@@ -97,14 +143,34 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
         <div className="p-16 border-b-2 border-slate-900">
            <div className="flex justify-between items-start mb-12">
               <div className="space-y-4">
-                 <div className="h-16 w-auto opacity-100 mb-6">
+                 <div className="h-16 w-auto opacity-100 mb-6 relative group">
                     {worksheet.logoUrl ? (
                       <img src={worksheet.logoUrl} className="h-full w-auto object-contain" />
                     ) : (
                       <Landmark className="w-12 h-12" style={{ color: primaryColor }} />
                     )}
+                    {isBuilderMode && (
+                      <div 
+                        onClick={() => logoInputRef.current?.click()}
+                        className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity rounded-lg no-print"
+                      >
+                        <CloudUpload className="text-white w-6 h-6" />
+                        <input 
+                          type="file" 
+                          ref={logoInputRef} 
+                          className="hidden" 
+                          accept="image/*" 
+                          onChange={handleLogoUpload} 
+                        />
+                      </div>
+                    )}
                  </div>
-                 <h2 className="text-[10px] font-black uppercase tracking-[0.3em]" style={{ color: primaryColor }}>{worksheet.institutionName || "Instructional Academy"}</h2>
+                 <EditableField 
+                    value={worksheet.institutionName || "Instructional Academy"} 
+                    onSave={(v: string) => handleUpdate({...worksheet, institutionName: v})}
+                    className="text-[10px] font-black uppercase tracking-[0.3em]" 
+                    style={{ color: primaryColor }} 
+                 />
               </div>
               <div className="text-right">
                  <div className="inline-flex flex-col items-end opacity-20 mb-4">
@@ -128,8 +194,8 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
               <div className="flex gap-10 text-right pb-1">
                  {!isK12 && (
                     <>
-                       <div><p className="text-[7px] font-black uppercase tracking-widest opacity-40 mb-1">Module ID</p><p className="font-bold text-sm">{worksheet.courseCode || "UN-101"}</p></div>
-                       <div><p className="text-[7px] font-black uppercase tracking-widest opacity-40 mb-1">Faculty</p><p className="font-bold text-sm">{worksheet.instructorName || "Lead"}</p></div>
+                       <div><p className="text-[7px] font-black uppercase tracking-widest opacity-40 mb-1">Course ID</p><p className="font-bold text-sm uppercase">{worksheet.courseCode || "UN-101"}</p></div>
+                       <div><p className="text-[7px] font-black uppercase tracking-widest opacity-40 mb-1">Faculty</p><p className="font-bold text-sm uppercase">{worksheet.instructorName || "Lead"}</p></div>
                     </>
                  )}
                  {isK12 && (
@@ -158,7 +224,7 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
                     <p className="text-[7px] font-black uppercase tracking-widest text-slate-300 mb-1">Session Duration</p>
                     <p className="text-xl font-black">{worksheet.duration || "Self-Paced"}</p>
                  </div>
-                 <p className="text-[7px] font-black uppercase tracking-widest opacity-20">Secure Copy • Do Not Replicate</p>
+                 <p className="text-[7px] font-black uppercase tracking-widest opacity-20">Secure Instrument • Blueprint Pro</p>
               </div>
            </div>
 
@@ -177,7 +243,7 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
                               <div className="flex-1 space-y-1">
                                  <div className="flex items-center gap-3">
                                     <span className="text-[7px] font-black uppercase tracking-widest opacity-30">{q.learningOutcome || "UNCLASSIFIED"}</span>
-                                    {isBuilderMode && <button onClick={() => handleUpdate({...worksheet, questions: worksheet.questions.filter(qu => qu.id !== q.id)})} className="text-red-400 opacity-20 group-hover/q:opacity-100 transition-opacity"><Trash2 className="w-3 h-3" /></button>}
+                                    {isBuilderMode && <button onClick={() => handleUpdate({...worksheet, questions: worksheet.questions.filter(qu => qu.id !== q.id)})} className="text-red-400 opacity-20 group-hover/q:opacity-100 transition-opacity no-print"><Trash2 className="w-3 h-3" /></button>}
                                  </div>
                                  <h3 className="text-xl font-bold text-slate-900 leading-tight">
                                     <EditableField multiline value={q.question} onSave={(v: any) => updateQuestion(q.id, {question: v})} isMath={true} />
