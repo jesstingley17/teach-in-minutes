@@ -64,19 +64,37 @@ const App: React.FC = () => {
   const guidelineInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
-  // Mandatory API Key Selection Check
-  useEffect(() => {
-    const checkApiKey = async () => {
-      // @ts-ignore - Global injected by platform
-      if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+  /**
+   * Proactive API Key Verification
+   */
+  const checkApiKeyStatus = async () => {
+    // 1. Check if we have the environment variable
+    const hasEnvKey = !!process.env.API_KEY && process.env.API_KEY !== "";
+    
+    // 2. Check the platform helper
+    let hasSelectedKey = false;
+    // @ts-ignore
+    if (window.aistudio?.hasSelectedApiKey) {
+      try {
         // @ts-ignore
-        const hasKey = await window.aistudio.hasSelectedApiKey();
-        if (!hasKey) {
-          setApiKeyMissing(true);
-        }
+        hasSelectedKey = await window.aistudio.hasSelectedApiKey();
+      } catch (e) {
+        console.warn("API Selection check failed", e);
       }
-    };
-    checkApiKey();
+    }
+
+    // If both are missing, we must prompt the user
+    if (!hasEnvKey && !hasSelectedKey) {
+      setApiKeyMissing(true);
+      return false;
+    }
+    
+    setApiKeyMissing(false);
+    return true;
+  };
+
+  useEffect(() => {
+    checkApiKeyStatus();
 
     const savedBranding = localStorage.getItem('institutional_branding');
     if (savedBranding) setBranding(JSON.parse(savedBranding));
@@ -95,11 +113,17 @@ const App: React.FC = () => {
 
   const handleConnectApiKey = async () => {
     // @ts-ignore
-    if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
-      // @ts-ignore
-      await window.aistudio.openSelectKey();
-      // Per instructions: assume success and proceed to mitigate race conditions
-      setApiKeyMissing(false);
+    if (window.aistudio?.openSelectKey) {
+      try {
+        // @ts-ignore
+        await window.aistudio.openSelectKey();
+        // Assume success to proceed and mitigate race conditions per instructions
+        setApiKeyMissing(false);
+      } catch (e) {
+        console.error("Failed to open key selection dialog", e);
+      }
+    } else {
+      alert("AI selection services are currently unavailable in this context.");
     }
   };
 
@@ -131,6 +155,9 @@ const App: React.FC = () => {
   };
 
   const handleSmartMap = async () => {
+    const isReady = await checkApiKeyStatus();
+    if (!isReady) return;
+
     if (!formData.guidelineData && !formData.rawText) {
       alert("Source material required. Please upload a file or paste text first.");
       return;
@@ -171,6 +198,9 @@ const App: React.FC = () => {
   };
 
   const handleGenerate = async () => {
+    const isReady = await checkApiKeyStatus();
+    if (!isReady) return;
+
     if (!formData.topic) { alert("Please provide a subject topic."); return; }
     if (suiteIntents.length === 0) { alert("The generation pipeline is empty."); return; }
     
@@ -261,17 +291,16 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex bg-white font-sans text-slate-900">
-      {/* Mandatory API Key Overlay */}
+      {/* Mandatory API Key Overlay - Highest Z-Index */}
       {apiKeyMissing && (
-        <div className="fixed inset-0 z-[500] bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-6 animate-in fade-in duration-500">
-          <div className="bg-white w-full max-w-lg rounded-[3rem] p-12 text-center shadow-2xl animate-in zoom-in duration-300">
-            <div className="w-20 h-20 bg-blue-100 text-blue-600 rounded-[2rem] flex items-center justify-center mx-auto mb-8">
-              <Key className="w-10 h-10" />
+        <div className="fixed inset-0 z-[1000] bg-slate-900/95 backdrop-blur-2xl flex items-center justify-center p-6 animate-in fade-in duration-500">
+          <div className="bg-white w-full max-w-lg rounded-[3rem] p-12 text-center shadow-2xl border border-slate-100 animate-in zoom-in duration-300">
+            <div className="w-24 h-24 bg-blue-100 text-blue-600 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 shadow-inner">
+              <Key className="w-12 h-12" />
             </div>
             <h2 className="text-4xl font-black uppercase tracking-tighter italic mb-4">Connect AI Architect</h2>
             <p className="text-slate-500 font-bold text-sm leading-relaxed mb-8">
-              To utilize the high-reasoning Gemini 3 Pro engine, you must select an API key from a paid GCP project. 
-              This ensures your curriculum analysis is exhaustive and accurate.
+              To utilize the high-reasoning <span className="text-slate-900">Gemini 3 Pro</span> engine, you must select an API key from a paid Google Cloud project. 
             </p>
             <div className="bg-slate-50 p-6 rounded-3xl mb-8 border border-slate-100 flex items-start gap-4 text-left">
               <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-1" />
@@ -281,7 +310,7 @@ const App: React.FC = () => {
                   href="https://ai.google.dev/gemini-api/docs/billing" 
                   target="_blank" 
                   rel="noreferrer"
-                  className="text-xs font-bold text-blue-600 underline hover:text-blue-700"
+                  className="text-xs font-bold text-blue-600 underline hover:text-blue-700 decoration-2 underline-offset-4"
                 >
                   View Billing Documentation & Setup
                 </a>
@@ -289,10 +318,12 @@ const App: React.FC = () => {
             </div>
             <button 
               onClick={handleConnectApiKey}
-              className="w-full py-6 bg-slate-900 text-white rounded-[2rem] font-black text-xl uppercase tracking-widest shadow-2xl hover:bg-slate-800 active:scale-95 transition-all"
+              className="w-full py-6 bg-slate-900 text-white rounded-[2rem] font-black text-xl uppercase tracking-widest shadow-2xl hover:bg-slate-800 active:scale-95 transition-all flex items-center justify-center gap-3"
             >
+              <Sparkles className="w-6 h-6 text-yellow-400" />
               Select Paid API Key
             </button>
+            <p className="mt-6 text-[9px] font-black uppercase tracking-[0.2em] text-slate-300">Requires Google Cloud Billing-Enabled Key</p>
           </div>
         </div>
       )}
@@ -564,7 +595,14 @@ const App: React.FC = () => {
                         <input type="file" ref={logoInputRef} className="hidden" accept="image/*" onChange={handleLogoUpload} />
                      </div>
                   </div>
-                  <div className="p-12 bg-slate-900 rounded-[3rem] text-white flex flex-col items-center justify-center text-center shadow-2xl"><Globe className="w-16 h-16 mb-8 text-blue-400" /><h3 className="text-2xl font-black uppercase italic">Global Identity Sync</h3><p className="text-white/40 text-[10px] font-bold uppercase mt-4 leading-relaxed">Changes to identity portal will automatically propagate to every unit materialized in your workspace archive.</p></div>
+                  <div className="p-12 bg-slate-900 rounded-[3rem] text-white flex flex-col items-center justify-center text-center shadow-2xl">
+                    <Globe className="w-16 h-16 mb-8 text-blue-400" />
+                    <h3 className="text-2xl font-black uppercase italic">Global Identity Sync</h3>
+                    <p className="text-white/40 text-[10px] font-bold uppercase mt-4 mb-8 leading-relaxed">Changes to identity portal will automatically propagate to every unit materialized in your workspace archive.</p>
+                    <button onClick={handleConnectApiKey} className="flex items-center gap-2 px-6 py-3 bg-white/10 hover:bg-white/20 rounded-xl text-[10px] font-black uppercase transition-all">
+                      <Key className="w-4 h-4" /> Update AI API Key
+                    </button>
+                  </div>
                </div>
             </div>
           ) : mode === AppMode.QUIZ && worksheet ? (
