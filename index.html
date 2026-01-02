@@ -11,6 +11,13 @@
     <link href="https://fonts.googleapis.com/css2?family=Indie+Flower&family=Schoolbell&family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:wght@700;900&family=PT+Serif:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
     <style>
+      /* Force Hardware Acceleration with Crispness */
+      * {
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        text-rendering: optimizeLegibility;
+      }
+
       .font-handwriting-header { font-family: 'Indie Flower', cursive; }
       .font-handwriting-body { font-family: 'Schoolbell', cursive; }
       .font-classic-header { font-family: 'Playfair Display', serif; }
@@ -33,29 +40,36 @@
         background-repeat: repeat-x;
       }
 
-      @keyframes subtle-zoom {
-        0%, 100% { transform: scale(1); }
-        50% { transform: scale(1.03); }
+      /* Stabilized Animation - Avoid scaling for sharpness */
+      @keyframes subtle-float {
+        0%, 100% { transform: translateY(0); opacity: 0.8; }
+        50% { transform: translateY(-10px); opacity: 1; }
       }
-      .animate-subtle-zoom {
-        animation: subtle-zoom 15s ease-in-out infinite;
-      }
-
-      @keyframes pulse-ring {
-        0% { transform: scale(0.95); opacity: 0.8; }
-        70% { transform: scale(1.5); opacity: 0; }
-        100% { transform: scale(0.95); opacity: 0; }
-      }
-      .animate-pulse-ring {
-        animation: pulse-ring 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      .animate-subtle-float {
+        animation: subtle-float 15s ease-in-out infinite;
       }
 
       @keyframes trace-pulse {
         0%, 100% { opacity: 0.4; }
-        50% { opacity: 1; transform: scaleY(1.15); filter: drop-shadow(0 0 5px rgba(234,179,8,0.4)); }
+        50% { opacity: 1; filter: drop-shadow(0 0 2px rgba(234,179,8,0.3)); }
       }
       .animate-trace-pulse {
         animation: trace-pulse 2s ease-in-out infinite;
+      }
+
+      /* Custom Scrollbar for Crispness */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #f8fafc;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 10px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
       }
     </style>
   <script type="importmap">
@@ -73,7 +87,7 @@
 }
 </script>
 </head>
-  <body class="bg-slate-50 text-slate-900 overflow-x-hidden">
+  <body class="bg-slate-50 text-slate-900 overflow-x-hidden antialiased">
     <div id="root"></div>
   </body>
 </html>
