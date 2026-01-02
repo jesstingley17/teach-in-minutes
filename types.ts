@@ -86,6 +86,7 @@ export interface Worksheet {
   standardReference?: string;
   documentType: DocumentType;
   institutionName?: string;
+  logoUrl?: string;
   courseCode?: string;
   instructorName?: string;
   duration?: string;

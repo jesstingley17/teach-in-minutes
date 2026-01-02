@@ -1,10 +1,9 @@
 
 import { GoogleGenAI, Type, Modality } from "@google/genai";
-import { Worksheet, QuestionType, ThemeType, DocumentType, AudienceCategory, LearnerProfile, AssessmentBlueprint, CurriculumStandard, GroundingSource } from "../types";
+import { Worksheet, QuestionType, DocumentType, AudienceCategory, LearnerProfile, CurriculumStandard, GroundingSource } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-// Audio Helper Functions (Manual implementation as per guidelines)
 function decodeBase64(base64: string) {
   const binaryString = atob(base64);
   const len = binaryString.length;
@@ -49,19 +48,20 @@ export interface GenerationOptions {
   isMathMode?: boolean;
   useGrounding?: boolean;
   curriculumStandard?: CurriculumStandard;
+  bulkCount?: number;
 }
 
-export async function generateWorksheet(options: GenerationOptions): Promise<Worksheet> {
+export async function generateWorksheet(options: GenerationOptions): Promise<Worksheet | Worksheet[]> {
   const { 
     topic, courseContext, educationalLevel, audienceCategory, learnerProfile, 
     difficulty, language, documentType, questionCounts, 
     rawText, fileData, isMathMode = false, useGrounding = false,
-    curriculumStandard = CurriculumStandard.NONE
+    curriculumStandard = CurriculumStandard.NONE,
+    bulkCount = 1
   } = options;
 
   const parts: any[] = [];
   
-  // 1. Add Media First (Multimodal Anchor)
   if (fileData) {
     parts.push({ 
       inlineData: { 
@@ -71,35 +71,31 @@ export async function generateWorksheet(options: GenerationOptions): Promise<Wor
     });
   }
 
-  // 2. Refined Prompt with Explicit Media Extraction Instructions
   const promptText = `
-    ROLE: Senior Academic Designer & Curriculum Specialist.
-    TASK: Generate a high-quality ${documentType} in ${language}.
+    ROLE: Senior Academic Designer.
+    TASK: Generate ${bulkCount > 1 ? `${bulkCount} unique versions of a` : 'a'} high-quality ${documentType} in ${language}.
     
-    SOURCE MATERIAL HANDLING:
-    ${fileData ? '1. CRITICAL: Analyze the ATTACHED MEDIA (PDF/Image) provided. This is your primary source of truth.' : ''}
-    ${fileData ? '2. Extract text, diagrams, and specific academic problems from the attached file.' : ''}
-    ${rawText ? `3. Additionally, use this supplementary text: "${rawText}"` : ''}
-    
-    STANDARDS ALIGNMENT: Strictly align content to ${curriculumStandard === CurriculumStandard.NONE ? 'General Academic Standards' : curriculumStandard} learning objectives for ${audienceCategory} - ${educationalLevel}.
-    
-    CURRICULUM CONTEXT: ${courseContext || 'Standalone assessment'}
-    SPECIFIC TOPIC: ${topic}
-    
-    LEARNER LEVEL: ${audienceCategory} - ${educationalLevel}
-    LEARNER PROFILE: ${learnerProfile} (Adjust rigor and instructions accordingly)
-    DIFFICULTY: ${difficulty}
+    LATEX RULES:
+    1. EVERY mathematical symbol, fraction, or equation MUST be wrapped in single dollar signs like $...$.
+    2. Fractions MUST be written as $\\frac{a}{b}$.
+    3. Even simple numbers like $72 \\frac{11}{12}$ MUST be wrapped in dollar signs if they contain fractions.
+    4. NEVER output raw backslashes without dollar delimiters.
 
-    PEDAGOGICAL RULES:
-    1. For ${learnerProfile === LearnerProfile.SPECIAL_ED ? 'IEP/Special Ed' : learnerProfile}, adjust vocabulary complexity.
-    2. USE LaTeX for all math. Fractions MUST be in $\\frac{a}{b}$ format. Math MUST be wrapped in $...$ delimiters.
-    3. CRITICAL: For every single question, provide a 'sectionInstruction'.
-    4. Provide a 'standardReference' string (e.g., "CCSS.ELA-LITERACY.RI.9-10.1") that maps to the primary objective of this worksheet.
+    SOURCE MATERIAL:
+    ${fileData ? '1. Analyze the ATTACHED MEDIA (PDF/Image). This is the primary source.' : ''}
+    ${rawText ? `2. Supplementary instructions: "${rawText}"` : ''}
     
-    QUESTION MIX REQUESTED:
+    CONTEXT:
+    - Topic: ${topic}
+    - Level: ${audienceCategory} (${educationalLevel})
+    - Learner Profile: ${learnerProfile}
+    - Standards: ${curriculumStandard}
+    - Difficulty: ${difficulty}
+    
+    QUESTION MIX PER SHEET:
     ${Object.entries(questionCounts).map(([t, c]) => `- ${t}: ${c}`).join('\n')}
 
-    FORMAT: Return JSON matching the Worksheet structure. Ensure the title is descriptive based on the provided material.
+    FORMAT: Return ${bulkCount > 1 ? 'an ARRAY of objects' : 'a single object'} matching the Worksheet structure.
   `;
   
   parts.push({ text: promptText });
@@ -109,108 +105,84 @@ export async function generateWorksheet(options: GenerationOptions): Promise<Wor
     tools.push({ googleSearch: {} });
   }
 
+  const worksheetSchemaProperties = {
+    title: { type: Type.STRING },
+    topic: { type: Type.STRING },
+    standardReference: { type: Type.STRING },
+    questions: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          id: { type: Type.STRING },
+          type: { type: Type.STRING, enum: Object.values(QuestionType) },
+          sectionInstruction: { type: Type.STRING },
+          question: { type: Type.STRING },
+          options: { type: Type.ARRAY, items: { type: Type.STRING } },
+          correctAnswer: { type: Type.STRING },
+          explanation: { type: Type.STRING },
+          isChallenge: { type: Type.BOOLEAN },
+          points: { type: Type.NUMBER }
+        },
+        required: ["id", "type", "sectionInstruction", "question", "correctAnswer"]
+      }
+    }
+  };
+
   const response = await ai.models.generateContent({
     model: "gemini-3-pro-preview",
     contents: { parts },
     config: {
       tools,
       responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          title: { type: Type.STRING },
-          topic: { type: Type.STRING },
-          standardReference: { type: Type.STRING },
-          questions: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                id: { type: Type.STRING },
-                type: { type: Type.STRING, enum: Object.values(QuestionType) },
-                sectionInstruction: { type: Type.STRING },
-                question: { type: Type.STRING },
-                options: { type: Type.ARRAY, items: { type: Type.STRING } },
-                correctAnswer: { type: Type.STRING },
-                explanation: { type: Type.STRING },
-                isChallenge: { type: Type.BOOLEAN },
-                points: { type: Type.NUMBER }
-              },
-              required: ["id", "type", "sectionInstruction", "question", "correctAnswer"]
-            }
-          }
-        },
-        required: ["title", "topic", "questions"]
-      }
+      responseSchema: bulkCount > 1 
+        ? { type: Type.ARRAY, items: { type: Type.OBJECT, properties: worksheetSchemaProperties, required: ["title", "topic", "questions"] } }
+        : { type: Type.OBJECT, properties: worksheetSchemaProperties, required: ["title", "topic", "questions"] }
     }
   });
 
-  const worksheet = JSON.parse(response.text || '{}') as Worksheet;
-  worksheet.documentType = documentType;
-  worksheet.curriculumStandard = curriculumStandard;
+  const parsed = JSON.parse(response.text || (bulkCount > 1 ? '[]' : '{}'));
   
-  if (useGrounding && response.candidates?.[0]?.groundingMetadata?.groundingChunks) {
-    const chunks = response.candidates[0].groundingMetadata.groundingChunks;
-    const sources: GroundingSource[] = chunks
-      .filter((chunk: any) => chunk.web)
-      .map((chunk: any) => ({
-        title: chunk.web.title || "Reference",
-        uri: chunk.web.uri
-      }));
-    worksheet.groundingSources = sources;
-  }
+  const processResult = (ws: any) => {
+    ws.documentType = documentType;
+    ws.curriculumStandard = curriculumStandard;
+    if (useGrounding && response.candidates?.[0]?.groundingMetadata?.groundingChunks) {
+      const chunks = response.candidates[0].groundingMetadata.groundingChunks;
+      ws.groundingSources = chunks.filter((c: any) => c.web).map((c: any) => ({ title: c.web.title || "Ref", uri: c.web.uri }));
+    }
+    return ws as Worksheet;
+  };
 
-  return worksheet;
+  return Array.isArray(parsed) ? parsed.map(processResult) : processResult(parsed);
 }
 
-/**
- * Text-to-Speech using Gemini 2.5 Flash native audio.
- * Reads out questions or instructions for accessibility.
- */
 export async function generateSpeech(text: string): Promise<void> {
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: `Read this clearly for a student: ${text}` }] }],
+      contents: [{ parts: [{ text: `Read this clearly: ${text}` }] }],
       config: {
         responseModalities: [Modality.AUDIO],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: 'Kore' },
-          },
-        },
+        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
       },
     });
-
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (base64Audio) {
       const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       const decodedData = decodeBase64(base64Audio);
       const audioBuffer = await decodeAudioData(decodedData, audioCtx, 24000, 1);
-      
       const source = audioCtx.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(audioCtx.destination);
       source.start();
     }
-  } catch (error) {
-    console.error("Speech generation failed", error);
-  }
+  } catch (error) { console.error(error); }
 }
 
 export async function generateDoodles(topic: string, gradeLevel: string): Promise<string[]> {
-  const prompt = `Create hand-drawn minimalist pencil sketches for a school worksheet about "${topic}" for ${gradeLevel}. Style: simple black line art, white background.`;
   const response = await ai.models.generateContent({
     model: 'gemini-2.5-flash-image',
-    contents: { parts: [{ text: prompt }] }
+    contents: { parts: [{ text: `Hand-drawn minimalist pencil sketch for "${topic}" for ${gradeLevel}. Black line art, white background.` }] }
   });
-  const urls: string[] = [];
-  if (response.candidates?.[0]?.content?.parts) {
-    for (const part of response.candidates[0].content.parts) {
-      if (part.inlineData) {
-        urls.push(`data:${part.inlineData.mimeType};base64,${part.inlineData.data}`);
-      }
-    }
-  }
-  return urls;
+  return response.candidates?.[0]?.content?.parts?.filter(p => p.inlineData).map(p => `data:${p.inlineData.mimeType};base64,${p.inlineData.data}`) || [];
 }
