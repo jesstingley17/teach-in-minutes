@@ -11,7 +11,7 @@ import {
   Languages, BrainCircuit, Star, Zap, Construction, Target,
   Settings, Layers, ChevronRight, Layout, Palette, Trash2, ArrowLeft,
   Settings2, Sliders, ListChecks, Hash, Gauge, Microscope, Copy, Check, User, PlayCircle,
-  Image as ImageIcon, Globe, Search, Brain, ListOrdered, FileText
+  Image as ImageIcon, Globe, Search, Brain, ListOrdered, FileText, Key, Info
 } from 'lucide-react';
 
 const DEFAULT_BRANDING: BrandingConfig = {
@@ -25,6 +25,7 @@ const DEFAULT_BRANDING: BrandingConfig = {
 const App: React.FC = () => {
   const [user, setUser] = useState<{ id: string; name: string } | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [apiKeyMissing, setApiKeyMissing] = useState(false);
 
   const [mode, setMode] = useState<AppMode>(AppMode.ONBOARDING);
   const [worksheet, setWorksheet] = useState<Worksheet | null>(null);
@@ -63,7 +64,20 @@ const App: React.FC = () => {
   const guidelineInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
+  // Mandatory API Key Selection Check
   useEffect(() => {
+    const checkApiKey = async () => {
+      // @ts-ignore - Global injected by platform
+      if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+        // @ts-ignore
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        if (!hasKey) {
+          setApiKeyMissing(true);
+        }
+      }
+    };
+    checkApiKey();
+
     const savedBranding = localStorage.getItem('institutional_branding');
     if (savedBranding) setBranding(JSON.parse(savedBranding));
 
@@ -78,6 +92,16 @@ const App: React.FC = () => {
     
     setAuthLoading(false);
   }, []);
+
+  const handleConnectApiKey = async () => {
+    // @ts-ignore
+    if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
+      // @ts-ignore
+      await window.aistudio.openSelectKey();
+      // Per instructions: assume success and proceed to mitigate race conditions
+      setApiKeyMissing(false);
+    }
+  };
 
   useEffect(() => { 
     if (user) fetchUserContent(); 
@@ -118,11 +142,10 @@ const App: React.FC = () => {
         file: formData.guidelineData 
       });
 
-      if (lessons.length === 0) {
-        throw new Error("No distinct units found.");
+      if (!lessons || lessons.length === 0) {
+        throw new Error("No distinct units found in this document. The material might be too short or too unstructured.");
       }
 
-      // Strictly map one unit per detected lesson
       const mappedIntents = lessons.map((lesson, idx) => ({
         id: Math.random().toString(),
         type: DocumentType.QUIZ, 
@@ -134,10 +157,14 @@ const App: React.FC = () => {
       }));
 
       setSuiteIntents(mappedIntents);
-      if (!formData.topic) setFormData({ ...formData, topic: "Automated Course Content" });
-    } catch (e) {
+      if (!formData.topic) setFormData({ ...formData, topic: lessons[0].title || "Automated Course Content" });
+    } catch (e: any) {
       console.error("Scanning Error:", e);
-      alert("Curriculum scanning encountered an issue. Please try providing more context or a clearer document structure.");
+      if (e.message?.includes("Requested entity was not found")) {
+        setApiKeyMissing(true);
+      } else {
+        alert(`Curriculum scanning encountered an issue: ${e.message || "Unknown error"}. Please try providing more context or a clearer document structure.`);
+      }
     } finally {
       setIsScanning(false);
     }
@@ -174,7 +201,11 @@ const App: React.FC = () => {
       setMode(AppMode.BULK_REVIEW);
     } catch (e: any) { 
       console.error("Generation Error:", e);
-      alert(e.message || "The synthesis engine failed to materialize your suite. Try simplifying the node requirements.");
+      if (e.message?.includes("Requested entity was not found")) {
+        setApiKeyMissing(true);
+      } else {
+        alert(`The synthesis engine failed to materialize your suite: ${e.message || "Unknown synthesis error"}. Try simplifying the node requirements.`);
+      }
     } finally { setLoading(false); }
   };
 
@@ -230,6 +261,42 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex bg-white font-sans text-slate-900">
+      {/* Mandatory API Key Overlay */}
+      {apiKeyMissing && (
+        <div className="fixed inset-0 z-[500] bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-6 animate-in fade-in duration-500">
+          <div className="bg-white w-full max-w-lg rounded-[3rem] p-12 text-center shadow-2xl animate-in zoom-in duration-300">
+            <div className="w-20 h-20 bg-blue-100 text-blue-600 rounded-[2rem] flex items-center justify-center mx-auto mb-8">
+              <Key className="w-10 h-10" />
+            </div>
+            <h2 className="text-4xl font-black uppercase tracking-tighter italic mb-4">Connect AI Architect</h2>
+            <p className="text-slate-500 font-bold text-sm leading-relaxed mb-8">
+              To utilize the high-reasoning Gemini 3 Pro engine, you must select an API key from a paid GCP project. 
+              This ensures your curriculum analysis is exhaustive and accurate.
+            </p>
+            <div className="bg-slate-50 p-6 rounded-3xl mb-8 border border-slate-100 flex items-start gap-4 text-left">
+              <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-1" />
+              <div>
+                <p className="text-[10px] font-black uppercase text-slate-400 mb-1">Configuration Required</p>
+                <a 
+                  href="https://ai.google.dev/gemini-api/docs/billing" 
+                  target="_blank" 
+                  rel="noreferrer"
+                  className="text-xs font-bold text-blue-600 underline hover:text-blue-700"
+                >
+                  View Billing Documentation & Setup
+                </a>
+              </div>
+            </div>
+            <button 
+              onClick={handleConnectApiKey}
+              className="w-full py-6 bg-slate-900 text-white rounded-[2rem] font-black text-xl uppercase tracking-widest shadow-2xl hover:bg-slate-800 active:scale-95 transition-all"
+            >
+              Select Paid API Key
+            </button>
+          </div>
+        </div>
+      )}
+
       <aside className="w-72 border-r border-slate-100 hidden lg:flex flex-col fixed h-full z-20 no-print bg-white">
         <div className="p-8 border-b border-slate-50">
            <div className="flex items-center gap-3 mb-10 cursor-pointer" onClick={() => setMode(AppMode.ONBOARDING)}>
