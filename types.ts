@@ -36,8 +36,26 @@ export enum LearnerProfile {
   REMEDIAL = 'REMEDIAL'
 }
 
+export interface CourseModule {
+  id: string;
+  title: string;
+  description: string;
+  topics: string[];
+  status: 'pending' | 'generated' | 'completed';
+}
+
+export interface Course {
+  id: string;
+  title: string;
+  code?: string;
+  description: string;
+  modules: CourseModule[];
+}
+
 export interface Worksheet {
   id?: string;
+  courseId?: string;
+  moduleId?: string;
   title: string;
   topic: string;
   educationalLevel: string;
@@ -58,7 +76,8 @@ export interface Worksheet {
 export enum AppMode {
   GENERATOR = 'GENERATOR',
   WORKSHEET = 'WORKSHEET',
-  QUIZ = 'QUIZ'
+  QUIZ = 'QUIZ',
+  COURSE_MANAGER = 'COURSE_MANAGER'
 }
 
 export enum ThemeType {

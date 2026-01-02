@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { AppMode, Worksheet, ThemeType, QuestionType, DocumentType, AudienceCategory, LearnerProfile } from './types';
-import { generateWorksheet, analyzeSourceMaterial } from './services/geminiService';
+import { AppMode, Worksheet, ThemeType, QuestionType, DocumentType, AudienceCategory, LearnerProfile, Course, CourseModule } from './types';
+import { generateWorksheet, parseCourseOutline } from './services/geminiService';
 import { WorksheetView } from './components/WorksheetView';
 import { QuizView } from './components/QuizView';
 import { MarkerHighlight } from './components/HandwritingElements';
@@ -14,7 +14,8 @@ import {
   Minus, Wand2, Printer, 
   Globe, FileStack, Sigma, 
   Baby, School, Building2, UserCircle, 
-  Zap, Brain, Languages, Users
+  Zap, Brain, Languages, Users, Layout, 
+  BookOpen, ChevronRight, MoreHorizontal, CheckCircle
 } from 'lucide-react';
 
 const CATEGORIES = [
@@ -33,43 +34,11 @@ const PROFILES = [
   { id: LearnerProfile.ESL_ELL, label: 'ESL / ELL', icon: Languages, color: 'text-blue-500' }
 ];
 
-const WorksheetSkeleton: React.FC = () => (
-  <div className="w-full max-w-4xl mx-auto bg-white p-[15mm] shadow-2xl min-h-[297mm] relative border border-slate-100">
-    <div className="animate-pulse space-y-12">
-      <div className="flex justify-between items-start">
-        <div className="space-y-4 flex-1">
-          <div className="h-10 bg-slate-200 rounded w-3/4"></div>
-          <div className="h-4 bg-slate-100 rounded w-1/2"></div>
-        </div>
-        <div className="h-24 w-24 bg-slate-100 rounded"></div>
-      </div>
-      <div className="h-20 bg-slate-50 rounded-lg"></div>
-      {[...Array(4)].map((_, i) => (
-        <div key={i} className="space-y-4">
-          <div className="flex gap-4">
-            <div className="h-8 w-8 bg-slate-200"></div>
-            <div className="h-6 bg-slate-100 rounded flex-1"></div>
-          </div>
-          <div className="ml-12 h-20 bg-slate-50 border-b border-dashed border-slate-200"></div>
-        </div>
-      ))}
-    </div>
-    <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/40 backdrop-blur-[2px]">
-      <div className="bg-white p-12 rounded-[3rem] shadow-2xl border-4 border-slate-900 flex flex-col items-center space-y-6">
-        <Loader2 className="w-16 h-16 text-slate-900 animate-spin" />
-        <div className="text-center">
-          <p className="font-black text-3xl text-slate-900 uppercase tracking-tighter">Drafting Academic Material</p>
-          <p className="text-slate-500 font-bold uppercase text-xs tracking-widest mt-2">AI is structuring your assessment...</p>
-        </div>
-      </div>
-    </div>
-  </div>
-);
-
 const App: React.FC = () => {
   const [mode, setMode] = useState<AppMode>(AppMode.GENERATOR);
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [worksheet, setWorksheet] = useState<Worksheet | null>(null);
+  const [activeCourse, setActiveCourse] = useState<Course | null>(null);
   const [savedWorksheets, setSavedWorksheets] = useState<Worksheet[]>([]);
   const [loading, setLoading] = useState(false);
   const [showTeacherKey, setShowTeacherKey] = useState(false);
@@ -90,21 +59,67 @@ const App: React.FC = () => {
       [QuestionType.MCQ]: 3,
       [QuestionType.TF]: 2,
       [QuestionType.SHORT_ANSWER]: 2,
-    }
+    } as Record<string, number>
   });
 
-  const [fileData, setFileData] = useState<{ data: string; mimeType: string; name: string; preview?: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const syllabusInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem('tm_v3_saved');
     if (saved) setSavedWorksheets(JSON.parse(saved));
+    const savedCourse = localStorage.getItem('tm_v3_course');
+    if (savedCourse) setActiveCourse(JSON.parse(savedCourse));
   }, []);
 
   const handleSave = (wsToSave: Worksheet) => {
     const newSaved = [wsToSave, ...savedWorksheets.filter(w => w.id !== wsToSave.id)].slice(0, 20);
     localStorage.setItem('tm_v3_saved', JSON.stringify(newSaved));
     setSavedWorksheets(newSaved);
+  };
+
+  // Added updateCount helper to fix 'Cannot find name updateCount' error
+  const updateCount = (type: string, delta: number) => {
+    setFormData(prev => ({
+      ...prev,
+      questionCounts: {
+        ...prev.questionCounts,
+        [type]: Math.max(0, (prev.questionCounts[type] || 0) + delta)
+      }
+    }));
+  };
+
+  const handleCourseUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLoading(true);
+    try {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const result = reader.result as string;
+        const base64String = result.split(',')[1];
+        const course = await parseCourseOutline({ data: base64String, mimeType: file.type });
+        setActiveCourse(course);
+        localStorage.setItem('tm_v3_course', JSON.stringify(course));
+        setMode(AppMode.COURSE_MANAGER);
+      };
+      reader.readAsDataURL(file);
+    } catch (e) {
+      alert("Failed to parse syllabus.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGenerateFromModule = (module: CourseModule) => {
+    setFormData({
+      ...formData,
+      topic: `${module.title}: ${module.topics.join(', ')}`,
+      customTitle: module.title,
+      rawText: module.description
+    });
+    setMode(AppMode.GENERATOR);
+    setCurrentStep(3); // Skip to question counts
   };
 
   const handleGenerate = async () => {
@@ -114,6 +129,7 @@ const App: React.FC = () => {
       const result = await generateWorksheet({
         ...formData,
         questionCounts: formData.questionCounts as Record<string, number>,
+        courseContext: activeCourse ? `From course: ${activeCourse.title}` : undefined,
         isMathMode
       });
       setWorksheet({ ...result, id: Date.now().toString(), savedAt: Date.now() });
@@ -125,35 +141,11 @@ const App: React.FC = () => {
     }
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
-        const base64String = result.split(',')[1];
-        setFileData({ data: base64String, mimeType: file.type, name: file.name, preview: file.type.startsWith('image/') ? result : undefined });
-        setIsAnalyzing(true);
-        analyzeSourceMaterial({ data: base64String, mimeType: file.type }, formData.rawText).then(res => {
-          if (res) setFormData(p => ({...p, customTitle: res.suggestedTitle, topic: res.suggestedTopicScope}));
-          setIsAnalyzing(false);
-        });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const updateCount = (type: string, delta: number) => {
-    setFormData(p => ({
-      ...p,
-      questionCounts: { ...p.questionCounts, [type]: Math.max(0, (p.questionCounts as any)[type] + delta) }
-    }));
-  };
-
   const activeCategory = CATEGORIES.find(c => c.id === formData.audienceCategory);
 
   return (
     <div className="min-h-screen flex bg-slate-100">
+      {/* Sidebar */}
       <aside className="w-80 bg-white border-r border-slate-200 hidden lg:flex flex-col fixed h-full z-20 no-print">
         <div className="p-8 border-b border-slate-100">
            <div className="flex items-center gap-3">
@@ -162,7 +154,7 @@ const App: React.FC = () => {
               </div>
               <div>
                  <h1 className="font-black text-xl tracking-tighter leading-none">TEACH IN MINUTES</h1>
-                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Academic V3.0</span>
+                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Syllabus Edition</span>
               </div>
            </div>
         </div>
@@ -172,13 +164,28 @@ const App: React.FC = () => {
               <button onClick={() => { setMode(AppMode.GENERATOR); setCurrentStep(1); }} className={`w-full flex items-center gap-3 p-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${mode === AppMode.GENERATOR ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
                  <Plus className="w-4 h-4" /> New Session
               </button>
+              {activeCourse && (
+                <button onClick={() => setMode(AppMode.COURSE_MANAGER)} className={`w-full flex items-center gap-3 p-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${mode === AppMode.COURSE_MANAGER ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
+                   <Layout className="w-4 h-4" /> Curriculum Map
+                </button>
+              )}
               <button onClick={() => worksheet && setMode(AppMode.WORKSHEET)} disabled={!worksheet} className={`w-full flex items-center gap-3 p-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${mode === AppMode.WORKSHEET ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50 disabled:opacity-30'}`}>
                  <FileText className="w-4 h-4" /> Active Editor
               </button>
            </nav>
 
            <div>
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-300 mb-4">Saved Library</h3>
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-300 mb-4">Course Controls</h3>
+              <div className="space-y-2">
+                <input type="file" ref={syllabusInputRef} className="hidden" onChange={handleCourseUpload} />
+                <button onClick={() => syllabusInputRef.current?.click()} className="w-full flex items-center gap-2 p-3 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 font-bold text-[10px] uppercase hover:border-slate-400 hover:text-slate-600 transition-all">
+                  <Upload className="w-3.5 h-3.5" /> Upload Syllabus
+                </button>
+              </div>
+           </div>
+
+           <div>
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-300 mb-4">Recent Library</h3>
               <div className="space-y-3">
                  {savedWorksheets.map(sw => (
                     <div key={sw.id} onClick={() => { setWorksheet(sw); setMode(AppMode.WORKSHEET); }} className="p-4 rounded-xl border border-slate-100 bg-slate-50 hover:bg-white hover:shadow-md cursor-pointer transition-all group">
@@ -193,13 +200,61 @@ const App: React.FC = () => {
 
       <main className="flex-1 lg:ml-80 min-h-screen">
         <div className="max-w-6xl mx-auto p-8">
-           {loading ? <WorksheetSkeleton /> : (
+           {loading ? (
+             <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6">
+                <Loader2 className="w-16 h-16 animate-spin text-slate-900" />
+                <div className="text-center">
+                  <h2 className="text-3xl font-black uppercase tracking-tighter">Structuring Content...</h2>
+                  <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest">Gemini is analyzing the educational context</p>
+                </div>
+             </div>
+           ) : (
              <>
+               {mode === AppMode.COURSE_MANAGER && activeCourse && (
+                 <div className="animate-in fade-in slide-in-from-bottom-8 duration-700">
+                    <header className="mb-12">
+                      <div className="inline-block px-3 py-1 bg-blue-100 text-blue-700 rounded-lg text-[10px] font-black uppercase tracking-widest mb-4">Course Outline Active</div>
+                      <h2 className="text-5xl font-black tracking-tighter text-slate-900 uppercase">{activeCourse.title}</h2>
+                      <p className="text-slate-500 font-bold mt-2 uppercase text-xs tracking-widest">{activeCourse.description}</p>
+                    </header>
+
+                    <div className="grid grid-cols-1 gap-6">
+                       {activeCourse.modules.map((mod, i) => (
+                         <div key={mod.id} className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100 flex items-start justify-between group hover:border-blue-400 transition-all">
+                            <div className="flex-1">
+                               <div className="flex items-center gap-4 mb-2">
+                                  <span className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center font-black text-xs">0{i+1}</span>
+                                  <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">{mod.title}</h3>
+                               </div>
+                               <p className="text-slate-500 text-sm mb-6 pr-12">{mod.description}</p>
+                               <div className="flex flex-wrap gap-2">
+                                  {mod.topics.map(t => (
+                                    <span key={t} className="px-3 py-1 bg-slate-50 border border-slate-100 rounded-full text-[10px] font-bold text-slate-400">{t}</span>
+                                  ))}
+                               </div>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                               <button 
+                                 onClick={() => handleGenerateFromModule(mod)}
+                                 className="px-6 py-3 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:bg-blue-600 transition-all"
+                               >
+                                  <Wand2 className="w-4 h-4" /> Draft Assessment
+                               </button>
+                               <button className="px-6 py-3 bg-slate-50 text-slate-400 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 border border-slate-100 hover:bg-slate-100 transition-all">
+                                  <BookOpen className="w-4 h-4" /> Lesson Details
+                               </button>
+                            </div>
+                         </div>
+                       ))}
+                    </div>
+                 </div>
+               )}
+
                {mode === AppMode.GENERATOR && (
                  <div className="max-w-4xl mx-auto py-12">
                    <header className="text-center mb-16">
                       <h2 className="text-6xl font-black tracking-tighter text-slate-900 mb-4 uppercase">
-                        Generate <MarkerHighlight>Excellence</MarkerHighlight>
+                        {currentStep === 3 ? 'Refine' : 'Generate'} <MarkerHighlight>Excellence</MarkerHighlight>
                       </h2>
                       <p className="text-slate-500 font-bold uppercase text-[10px] tracking-[0.3em]">AI-Powered Academic Content Studio</p>
                       
@@ -235,11 +290,7 @@ const App: React.FC = () => {
                              <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                                 <section className="animate-in fade-in duration-700">
                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 block">2. Exact Level / Grade</label>
-                                   <select 
-                                     className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-slate-700 outline-none focus:border-slate-900"
-                                     value={formData.educationalLevel}
-                                     onChange={(e) => setFormData({...formData, educationalLevel: e.target.value})}
-                                   >
+                                   <select className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-slate-700 outline-none focus:border-slate-900" value={formData.educationalLevel} onChange={(e) => setFormData({...formData, educationalLevel: e.target.value})}>
                                       {activeCategory?.sub.map(s => <option key={s} value={s}>{s}</option>)}
                                    </select>
                                 </section>
@@ -263,11 +314,7 @@ const App: React.FC = () => {
                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 block">4. Learner Profile & Context</label>
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                    {PROFILES.map(prof => (
-                                      <button 
-                                        key={prof.id}
-                                        onClick={() => setFormData({ ...formData, learnerProfile: prof.id })}
-                                        className={`p-4 rounded-2xl border-2 transition-all flex items-center gap-3 ${formData.learnerProfile === prof.id ? 'bg-white border-slate-900 ring-4 ring-slate-100' : 'bg-slate-50 border-slate-100 hover:border-slate-200'}`}
-                                      >
+                                      <button key={prof.id} onClick={() => setFormData({ ...formData, learnerProfile: prof.id })} className={`p-4 rounded-2xl border-2 transition-all flex items-center gap-3 ${formData.learnerProfile === prof.id ? 'bg-white border-slate-900 ring-4 ring-slate-100' : 'bg-slate-50 border-slate-100 hover:border-slate-200'}`}>
                                          <prof.icon className={`w-5 h-5 ${prof.color}`} />
                                          <span className="font-black text-[9px] uppercase tracking-widest text-slate-700">{prof.label}</span>
                                       </button>
@@ -292,28 +339,30 @@ const App: React.FC = () => {
                              <div className="flex gap-4 p-2 bg-slate-100 rounded-2xl">
                                 <button onClick={() => fileInputRef.current?.click()} className="flex-1 p-6 bg-white rounded-xl shadow-sm border border-slate-200 text-center hover:border-slate-400 transition-all flex flex-col items-center">
                                    <Upload className="w-8 h-8 text-blue-500 mb-2" />
-                                   <span className="font-black text-[10px] uppercase tracking-widest">Upload Source</span>
-                                   <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
+                                   <span className="font-black text-[10px] uppercase tracking-widest">Upload Module Material</span>
+                                   <input ref={fileInputRef} type="file" className="hidden" />
                                 </button>
                              </div>
                              <div className="relative">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Direct Material Input</label>
-                                <textarea 
-                                  className="w-full h-40 p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] font-medium text-slate-700 focus:bg-white focus:border-slate-900 outline-none resize-none transition-all"
-                                  placeholder="Paste lecture notes, text segments, or prompts..."
-                                  value={formData.rawText}
-                                  onChange={e => setFormData({...formData, rawText: e.target.value})}
-                                />
-                                {isAnalyzing && <div className="absolute inset-0 bg-white/60 flex items-center justify-center rounded-[2rem] backdrop-blur-sm"><Loader2 className="w-8 h-8 animate-spin text-slate-900" /></div>}
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Direct Content Input</label>
+                                <textarea className="w-full h-40 p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] font-medium text-slate-700 focus:bg-white focus:border-slate-900 outline-none resize-none transition-all" placeholder="Paste notes for this specific generation..." value={formData.rawText} onChange={e => setFormData({...formData, rawText: e.target.value})} />
                              </div>
                           </div>
                         )}
 
                         {currentStep === 3 && (
                           <div className="animate-in slide-in-from-right duration-500 h-full flex flex-col gap-8">
+                             <div className="p-8 bg-blue-50 rounded-3xl border border-blue-100 flex items-center gap-6">
+                                <div className="p-4 bg-blue-600 rounded-2xl text-white shadow-lg"><FileText className="w-6 h-6" /></div>
+                                <div>
+                                   <p className="text-[10px] font-black uppercase text-blue-400 tracking-widest mb-1">Target Section</p>
+                                   <h4 className="text-xl font-black text-blue-900 uppercase leading-none">{formData.topic.split(':')[0]}</h4>
+                                </div>
+                             </div>
+
                              <div className="space-y-6">
                                 <div>
-                                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Content Focus & Count</label>
+                                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Question Configuration</label>
                                    <div className="grid grid-cols-2 gap-4">
                                       {Object.entries(formData.questionCounts).map(([type, count]) => (
                                          <div key={type} className="flex items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-2xl">
@@ -329,7 +378,7 @@ const App: React.FC = () => {
                                 </div>
                                 
                                 <button onClick={handleGenerate} className="w-full py-6 bg-slate-900 text-white rounded-[2rem] font-black text-xl uppercase tracking-widest hover:bg-slate-800 transition-all shadow-2xl active:scale-95 flex items-center justify-center gap-4 mt-8">
-                                   <Wand2 className="w-6 h-6 text-yellow-400" /> Construct Assessment
+                                   <Wand2 className="w-6 h-6 text-yellow-400" /> Assemble Assessment
                                 </button>
                              </div>
                           </div>
